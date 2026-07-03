@@ -1,3 +1,11 @@
+---
+name: agent-scratchpad
+description: Use when working on complex coding tasks, refactors, migrations, debugging sessions, investigations, context compaction, or handoffs. Maintains a repo-local scratchpad for objective, plan, decisions, files inspected, files changed, commands run, validation, blockers, next steps, and handoff notes.
+license: MIT
+metadata:
+  version: "0.1.0"
+---
+
 # Skill: Agent Scratchpad
 
 **Use a local scratchpad file to maintain durable working memory across context windows, sessions, and agent handoffs.**

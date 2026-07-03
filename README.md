@@ -2,7 +2,7 @@
 
 **Durable working memory for coding agents.**
 
-Agent Scratchpad is an open-source, repo-local scratchpad workflow that gives coding agents a structured place to think, plan, and hand off work—without losing context mid-task.
+Agent Scratchpad is an open-source, repo-local scratchpad workflow that gives coding agents a structured place to record task state, plans, decisions, progress, and handoff notes—without losing context mid-task.
 
 Works with Codex, Claude Code, GitHub Copilot, Gemini CLI, Cursor, Aider, and any agent that can read Markdown instructions.
 
@@ -25,27 +25,27 @@ A durable, repo-local scratchpad solves this by giving the agent a stable file i
 
 ### Codex
 
-Add this repository as a Codex plugin marketplace source, then install the `agent-scratchpad` plugin:
-
-```jsonc
-// In your Codex config or .codex/config.json
-{
-  "marketplaces": [
-    "https://raw.githubusercontent.com/zartosht/agent-scratchpad-kit/main/.agents/plugins/marketplace.json"
-  ]
-}
-```
-
-Or install the plugin directly:
+Add this repository as a Codex plugin marketplace source:
 
 ```bash
-codex plugin install zartosht/agent-scratchpad-kit --plugin codex-plugin
+codex plugin marketplace add zartosht/agent-scratchpad-kit
 ```
+
+Then open Codex, run `/plugins`, choose **Agent Scratchpad Kit**, and install `agent-scratchpad`.
 
 ### Claude Code
 
+For local testing:
+
 ```bash
-claude plugin install zartosht/agent-scratchpad-kit --plugin claude-plugin
+claude --plugin-dir ./claude-plugin
+```
+
+For marketplace install, add the marketplace and install the plugin:
+
+```bash
+/plugin marketplace add zartosht/agent-scratchpad-kit
+/plugin install agent-scratchpad@agent-scratchpad-kit
 ```
 
 ### Manual install
@@ -88,6 +88,23 @@ Each adapter is a short Markdown snippet that instructs the respective agent to 
 - Summarize command output instead of dumping raw logs.
 - The local scratchpad (`.agent/SCRATCHPAD.local.md`) is git-ignored by design.
 - Review `.gitignore` to confirm the ignore rule is present before committing.
+
+---
+
+## Validation
+
+Verify the installer and plugin before contributing or publishing:
+
+```bash
+# Check installer syntax
+node --check installers/init.mjs
+
+# Run installer against a temp directory
+node installers/init.mjs /tmp/agent-scratchpad-test
+
+# Validate the Claude plugin
+claude plugin validate ./claude-plugin
+```
 
 ---
 

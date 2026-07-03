@@ -1,15 +1,22 @@
 {
-  "name": "Agent Scratchpad Kit",
-  "description": "Durable scratchpad workflow for long-running coding-agent tasks. Works with Codex, Claude Code, Copilot, Gemini CLI, Cursor, and Aider.",
+  "name": "agent-scratchpad-kit",
+  "interface": {
+    "displayName": "Agent Scratchpad Kit"
+  },
   "plugins": [
     {
       "name": "agent-scratchpad",
-      "version": "0.1.0",
-      "description": "Durable scratchpad workflow for long-running coding-agent tasks.",
-      "repository": "https://github.com/zartosht/agent-scratchpad-kit",
-      "pluginPath": "codex-plugin",
-      "license": "MIT",
-      "keywords": ["scratchpad", "agent", "workflow", "memory", "context"]
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/zartosht/agent-scratchpad-kit.git",
+        "path": "./codex-plugin",
+        "ref": "main"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
     }
   ]
 }
