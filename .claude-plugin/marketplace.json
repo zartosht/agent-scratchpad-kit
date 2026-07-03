@@ -1,19 +1,19 @@
 {
-  "name": "agent-scratchpad-kit",
-  "owner": {
-    "name": "Zartosht",
-    "url": "https://github.com/zartosht"
-  },
-  "plugins": [
-    {
-      "name": "agent-scratchpad",
-      "source": "./claude-plugin",
-      "description": "Durable scratchpad workflow for long-running coding-agent tasks.",
-      "version": "0.1.0",
-      "author": {
+    "name": "agent-scratchpad-kit",
+    "owner": {
         "name": "Zartosht",
         "url": "https://github.com/zartosht"
-      }
-    }
-  ]
+    },
+    "plugins": [
+        {
+            "name": "agent-scratchpad",
+            "source": "./claude-plugin",
+            "description": "Durable scratchpad workflow for long-running coding-agent tasks.",
+            "version": "0.1.0",
+            "author": {
+                "name": "Zartosht",
+                "url": "https://github.com/zartosht"
+            }
+        }
+    ]
 }
