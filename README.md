@@ -104,6 +104,9 @@ node installers/init.mjs /tmp/agent-scratchpad-test
 
 # Validate the Claude plugin
 claude plugin validate ./claude-plugin
+
+# Validate the Claude marketplace root
+claude plugin validate .
 ```
 
 ---
@@ -126,4 +129,3 @@ Please keep adapter files short. Each adapter should point agents to the same co
 - [ ] More agent adapters (Devin, SWE-agent, etc.)
 - [ ] Schema validation for `SCRATCHPAD.template.md`
 - [ ] CLI tool (`npx agent-scratchpad init`)
-

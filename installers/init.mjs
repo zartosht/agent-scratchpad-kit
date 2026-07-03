@@ -20,6 +20,8 @@ const FILES_TO_COPY = [
 ];
 
 const GITIGNORE_ENTRY = '.agent/SCRATCHPAD.local.md';
+const GITIGNORE_COMMENT = '# Agent local scratchpad state';
+const GITIGNORE_BLOCK = `${GITIGNORE_COMMENT}\n${GITIGNORE_ENTRY}`;
 
 const changes = [];
 
@@ -61,15 +63,17 @@ if (existsSync(gitignorePath)) {
   const content = readFileSync(gitignorePath, 'utf8');
   if (!content.includes(GITIGNORE_ENTRY)) {
     const updated = content.endsWith('\n')
-      ? `${content}${GITIGNORE_ENTRY}\n`
-      : `${content}\n${GITIGNORE_ENTRY}\n`;
+      ? `${content}${GITIGNORE_BLOCK}\n`
+      : `${content}\n${GITIGNORE_BLOCK}\n`;
     writeFileSync(gitignorePath, updated, 'utf8');
+    changes.push(`  added to .gitignore: ${GITIGNORE_COMMENT}`);
     changes.push(`  added to .gitignore: ${GITIGNORE_ENTRY}`);
   } else {
     changes.push(`  .gitignore already contains: ${GITIGNORE_ENTRY}`);
   }
 } else {
-  writeFileSync(gitignorePath, `${GITIGNORE_ENTRY}\n`, 'utf8');
+  writeFileSync(gitignorePath, `${GITIGNORE_BLOCK}\n`, 'utf8');
+  changes.push(`  created .gitignore with: ${GITIGNORE_COMMENT}`);
   changes.push(`  created .gitignore with: ${GITIGNORE_ENTRY}`);
 }
 
