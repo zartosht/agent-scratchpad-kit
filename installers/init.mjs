@@ -35,9 +35,12 @@ function ensureDir(filePath) {
 
 function copyWithBackup(srcAbs, destAbs, destRel) {
   if (existsSync(destAbs)) {
-    const backupPath = `${destAbs}.bak`;
-    copyFileSync(destAbs, backupPath);
-    changes.push(`  backed up: ${destRel} → ${destRel}.bak`);
+    let suffix = '.bak';
+    for (let i = 1; existsSync(`${destAbs}${suffix}`); i += 1) {
+      suffix = `.bak${i}`;
+    }
+    copyFileSync(destAbs, `${destAbs}${suffix}`);
+    changes.push(`  backed up: ${destRel} → ${destRel}${suffix}`);
   }
   copyFileSync(srcAbs, destAbs);
   changes.push(`  copied: ${destRel}`);
@@ -63,7 +66,10 @@ if (existsSync(gitignorePath)) {
   const content = readFileSync(gitignorePath, 'utf8');
   const hasEntry = content
     .split(/\r?\n/)
-    .some(line => line.trim() === GITIGNORE_ENTRY);
+    .some(line => {
+      const rule = line.split('#')[0].trim();
+      return rule === GITIGNORE_ENTRY || rule === `/${GITIGNORE_ENTRY}`;
+    });
 
   if (!hasEntry) {
     const updated = content.endsWith('\n')
