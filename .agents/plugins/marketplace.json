@@ -6,7 +6,7 @@
       "name": "agent-scratchpad",
       "version": "0.1.0",
       "description": "Durable scratchpad workflow for long-running coding-agent tasks.",
-      "repository": "https://github.com/YOUR_GITHUB/agent-scratchpad-kit",
+      "repository": "https://github.com/zartosht/agent-scratchpad-kit",
       "pluginPath": "codex-plugin",
       "license": "MIT",
       "keywords": ["scratchpad", "agent", "workflow", "memory", "context"]

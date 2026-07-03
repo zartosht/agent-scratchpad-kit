@@ -31,7 +31,7 @@ Add this repository as a Codex plugin marketplace source, then install the `agen
 // In your Codex config or .codex/config.json
 {
   "marketplaces": [
-    "https://raw.githubusercontent.com/YOUR_GITHUB/agent-scratchpad-kit/main/.agents/plugins/marketplace.json"
+    "https://raw.githubusercontent.com/zartosht/agent-scratchpad-kit/main/.agents/plugins/marketplace.json"
   ]
 }
 ```
@@ -39,13 +39,13 @@ Add this repository as a Codex plugin marketplace source, then install the `agen
 Or install the plugin directly:
 
 ```bash
-codex plugin install YOUR_GITHUB/agent-scratchpad-kit --plugin codex-plugin
+codex plugin install zartosht/agent-scratchpad-kit --plugin codex-plugin
 ```
 
 ### Claude Code
 
 ```bash
-claude plugin install YOUR_GITHUB/agent-scratchpad-kit --plugin claude-plugin
+claude plugin install zartosht/agent-scratchpad-kit --plugin claude-plugin
 ```
 
 ### Manual install

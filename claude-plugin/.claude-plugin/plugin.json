@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Durable scratchpad workflow for long-running coding-agent tasks.",
   "skills": "./skills/",
-  "author": "YOUR_GITHUB",
-  "repository": "https://github.com/YOUR_GITHUB/agent-scratchpad-kit",
+  "author": "zartosht",
+  "repository": "https://github.com/zartosht/agent-scratchpad-kit",
   "license": "MIT",
   "type": "claude-plugin"
 }

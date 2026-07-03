@@ -15,4 +15,4 @@ Before starting any complex task (multi-step coding, refactoring, debugging, mig
 
 See `.agent/README.md` for full instructions and `.agent/SCRATCHPAD.template.md` for the template.
 
-> Skill source: [Agent Scratchpad Kit](https://github.com/YOUR_GITHUB/agent-scratchpad-kit)
+> Skill source: [Agent Scratchpad Kit](https://github.com/zartosht/agent-scratchpad-kit)
