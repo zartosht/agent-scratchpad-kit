@@ -105,11 +105,11 @@ if (existsSync(gitignorePath)) {
 // Summary
 console.log('\nAgent Scratchpad Kit — init complete\n');
 console.log(`Target: ${targetRoot}\n`);
-if (changes.length > 0) {
-  console.log('Changes:');
-  changes.forEach(c => console.log(c));
+console.log('Summary:');
+if (changes.length === 0) {
+  console.log('  (no actions performed)');
 } else {
-  console.log('No changes made.');
+  changes.forEach(c => console.log(c));
 }
 console.log('\nNext steps:');
 console.log('  1. Read .agent/README.md to learn the scratchpad workflow.');
