@@ -79,12 +79,21 @@ if (existsSync(gitignorePath)) {
     });
 
   if (!hasEntry) {
+    // Backup .gitignore before modifying it
+    let suffix = '.bak';
+    for (let i = 1; existsSync(`${gitignorePath}${suffix}`); i += 1) {
+      suffix = `.bak${i}`;
+    }
+    copyFileSync(gitignorePath, `${gitignorePath}${suffix}`);
+    changes.push(`  backed up: .gitignore → .gitignore${suffix}`);
+
     const updated = content.endsWith('\n')
       ? `${content}${GITIGNORE_BLOCK}\n`
       : `${content}\n${GITIGNORE_BLOCK}\n`;
     writeFileSync(gitignorePath, updated, 'utf8');
     changes.push(`  added to .gitignore: ${GITIGNORE_COMMENT}`);
     changes.push(`  added to .gitignore: ${GITIGNORE_ENTRY}`);
+  }
   } else {
     changes.push(`  .gitignore already contains: ${GITIGNORE_ENTRY}`);
   }
