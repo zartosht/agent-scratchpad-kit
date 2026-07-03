@@ -11,7 +11,7 @@ Before starting any complex task (multi-step coding, refactoring, debugging, mig
 3. Update the scratchpad continuously as you work — record your objective, plan, decisions, files inspected/changed, commands run, and next steps.
 4. Fill in the **Handoff notes** section before ending a session.
 
-`.agent/SCRATCHPAD.local.md` is git-ignored. Never commit it.
+.agent/SCRATCHPAD.local.md is git-ignored. Never commit it. Never write secrets or credentials into the scratchpad.
 
 See `.agent/README.md` for full instructions and `.agent/SCRATCHPAD.template.md` for the template.
 

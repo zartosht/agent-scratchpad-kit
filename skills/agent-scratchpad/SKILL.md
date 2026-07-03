@@ -22,6 +22,8 @@ Use this skill whenever a task involves:
 
 ## Core convention
 
+In the repository you're working in (after installing this kit), use:
+
 | File | Purpose | Tracked? |
 |---|---|---|
 | `.agent/SCRATCHPAD.local.md` | Live task notes for the current session | **No** (git-ignored) |

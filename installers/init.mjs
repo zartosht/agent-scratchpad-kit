@@ -35,6 +35,13 @@ function ensureDir(filePath) {
 
 function copyWithBackup(srcAbs, destAbs, destRel) {
   if (existsSync(destAbs)) {
+    const srcBuf = readFileSync(srcAbs);
+    const destBuf = readFileSync(destAbs);
+    if (destBuf.equals(srcBuf)) {
+      changes.push(`  unchanged: ${destRel}`);
+      return;
+    }
+
     let suffix = '.bak';
     for (let i = 1; existsSync(`${destAbs}${suffix}`); i += 1) {
       suffix = `.bak${i}`;
