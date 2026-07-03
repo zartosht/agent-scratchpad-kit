@@ -1,0 +1,22 @@
+{
+    "name": "agent-scratchpad",
+    "displayName": "Agent Scratchpad",
+    "version": "0.1.0",
+    "description": "Durable scratchpad workflow for long-running coding-agent tasks.",
+    "author": {
+        "name": "Zartosht",
+        "url": "https://github.com/zartosht"
+    },
+    "homepage": "https://github.com/zartosht/agent-scratchpad-kit",
+    "repository": "https://github.com/zartosht/agent-scratchpad-kit",
+    "license": "MIT",
+    "keywords": [
+        "scratchpad",
+        "agent-skills",
+        "claude-code",
+        "coding-agents",
+        "handoff",
+        "context-management"
+    ],
+    "skills": "./skills/"
+}
