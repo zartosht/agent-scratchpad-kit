@@ -43,7 +43,7 @@ claude --plugin-dir ./claude-plugin
 
 For marketplace install, add the marketplace and install the plugin:
 
-```bash
+```text
 /plugin marketplace add zartosht/agent-scratchpad-kit
 /plugin install agent-scratchpad@agent-scratchpad-kit
 ```
