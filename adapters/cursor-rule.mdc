@@ -1,0 +1,22 @@
+---
+description: Use the Agent Scratchpad workflow for durable working memory in complex tasks.
+globs: "**/*"
+alwaysApply: true
+---
+
+# Agent Scratchpad
+
+This repository uses the **Agent Scratchpad** workflow for durable working memory.
+
+Before starting any complex task (multi-step coding, refactoring, debugging, migration, or investigation):
+
+1. Check if `.agent/SCRATCHPAD.local.md` exists. If not, copy `.agent/SCRATCHPAD.template.md` to `.agent/SCRATCHPAD.local.md`.
+2. Read the scratchpad to restore context from previous sessions.
+3. Update the scratchpad continuously as you work.
+4. Fill in the **Handoff notes** section before ending a session.
+
+`.agent/SCRATCHPAD.local.md` is git-ignored. Never commit it. Never write secrets or credentials into it.
+
+See `.agent/README.md` for full instructions.
+
+> Skill source: [Agent Scratchpad Kit](https://github.com/YOUR_GITHUB/agent-scratchpad-kit)

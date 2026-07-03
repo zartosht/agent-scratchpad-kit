@@ -1,0 +1,11 @@
+{
+  "name": "agent-scratchpad",
+  "version": "0.1.0",
+  "description": "Durable scratchpad workflow for long-running coding-agent tasks.",
+  "skills": "./skills/",
+  "author": "YOUR_GITHUB",
+  "repository": "https://github.com/YOUR_GITHUB/agent-scratchpad-kit",
+  "license": "MIT",
+  "keywords": ["scratchpad", "agent", "workflow", "memory", "codex"],
+  "installHint": "Gives your agent a structured local scratchpad to maintain context across sessions and handoffs."
+}
