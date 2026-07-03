@@ -93,7 +93,6 @@ if (existsSync(gitignorePath)) {
     writeFileSync(gitignorePath, updated, 'utf8');
     changes.push(`  added to .gitignore: ${GITIGNORE_COMMENT}`);
     changes.push(`  added to .gitignore: ${GITIGNORE_ENTRY}`);
-  }
   } else {
     changes.push(`  .gitignore already contains: ${GITIGNORE_ENTRY}`);
   }
