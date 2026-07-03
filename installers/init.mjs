@@ -61,7 +61,11 @@ for (const { src, dest } of FILES_TO_COPY) {
 const gitignorePath = join(targetRoot, '.gitignore');
 if (existsSync(gitignorePath)) {
   const content = readFileSync(gitignorePath, 'utf8');
-  if (!content.includes(GITIGNORE_ENTRY)) {
+  const hasEntry = content
+    .split(/\r?\n/)
+    .some(line => line.trim() === GITIGNORE_ENTRY);
+
+  if (!hasEntry) {
     const updated = content.endsWith('\n')
       ? `${content}${GITIGNORE_BLOCK}\n`
       : `${content}\n${GITIGNORE_BLOCK}\n`;

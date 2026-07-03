@@ -31,7 +31,7 @@ Add this repository as a Codex plugin marketplace source:
 codex plugin marketplace add zartosht/agent-scratchpad-kit
 ```
 
-Then open Codex, run `/plugins`, choose **Agent Scratchpad Kit**, and install `agent-scratchpad`.
+Then open Codex, run `/plugins`, choose **Agent Scratchpad**, and install `agent-scratchpad`.
 
 ### Claude Code
 
