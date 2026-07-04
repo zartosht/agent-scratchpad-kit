@@ -107,8 +107,9 @@ function syncVersionedJson(relPath) {
 
 function syncSkillMetadata(relPath) {
   const current = readText(relPath);
-  const next = current.replace(/metadata:\n  version: "([^"]+)"/, `metadata:\n  version: "${version}"`);
-  if (next === current && !current.includes(`version: "${version}"`)) {
+  const metadataVersionRe = /(metadata:\r?\n  version: )"([^"]+)"/;
+  const next = current.replace(metadataVersionRe, (_, prefix) => `${prefix}"${version}"`);
+  if (next === current && !metadataVersionRe.test(current)) {
     fail(relPath, 'could not find metadata.version');
     return;
   }

@@ -6,8 +6,11 @@ import { fileURLToPath } from 'url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const version = read('VERSION').trim();
+const SEMVER_RE = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
-assert.match(version, /^\d+\.\d+\.\d+$/);
+assert.match(version, SEMVER_RE);
+assert.match('0.2.0-dev.1', SEMVER_RE);
+assert.match('0.2.0+build.1', SEMVER_RE);
 assert.equal(json('package.json').version, version);
 assert.equal(json('codex-plugin/.codex-plugin/plugin.json').version, version);
 assert.equal(json('claude-plugin/.claude-plugin/plugin.json').version, version);
@@ -62,19 +65,19 @@ const cli = spawnSync(process.execPath, ['installers/init.mjs', '--version'], {
 assert.equal(cli.status, 0, cli.stderr);
 assert.equal(cli.stdout.trim(), version);
 
-for (const relPath of [
-  '.agent/SCRATCHPAD.local.md',
-  '.agent/backups/example.txt',
-  'PLAN.md',
-]) {
-  const ignored = spawnSync('git', ['check-ignore', relPath], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  });
-  assert.equal(ignored.status, 0, `${relPath} should be ignored`);
-}
-
 if (existsSync(join(repoRoot, '.git'))) {
+  for (const relPath of [
+    '.agent/SCRATCHPAD.local.md',
+    '.agent/backups/example.txt',
+    'PLAN.md',
+  ]) {
+    const ignored = spawnSync('git', ['check-ignore', relPath], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    assert.equal(ignored.status, 0, `${relPath} should be ignored`);
+  }
+
   for (const relPath of [
     '.agent/README.md',
     '.agent/SCRATCHPAD.template.md',
