@@ -400,15 +400,37 @@ function gitignoreRulesAreEffective(lines) {
 }
 
 function gitignorePathIgnoredByRelevantRules(lines, path) {
-  let ignored = false;
+  const paths = [...gitignoreParentPaths(path), path];
+  const ignoredByPath = new Map(paths.map(candidate => [candidate, false]));
   for (const line of lines) {
     const parsed = parseGitignoreRule(line);
-    if (!parsed || !gitignoreRuleMatchesPath(parsed.pattern, path)) {
+    if (!parsed) {
       continue;
     }
-    ignored = !parsed.negated;
+    for (const candidate of paths) {
+      if (!gitignoreRuleMatchesPath(parsed.pattern, candidate)) {
+        continue;
+      }
+      if (parsed.negated && gitignoreHasIgnoredParent(ignoredByPath, candidate)) {
+        continue;
+      }
+      ignoredByPath.set(candidate, !parsed.negated);
+    }
   }
-  return ignored;
+  return ignoredByPath.get(path) ?? false;
+}
+
+function gitignoreParentPaths(path) {
+  const parts = path.split('/');
+  const parents = [];
+  for (let index = 1; index < parts.length; index += 1) {
+    parents.push(parts.slice(0, index).join('/'));
+  }
+  return parents;
+}
+
+function gitignoreHasIgnoredParent(ignoredByPath, path) {
+  return gitignoreParentPaths(path).some(parent => ignoredByPath.get(parent));
 }
 
 function parseGitignoreRule(line) {
@@ -463,12 +485,49 @@ function gitignoreGlobMatches(pattern, value) {
       source += '[^/]*';
     } else if (char === '?') {
       source += '[^/]';
+    } else if (char === '[') {
+      const bracket = gitignoreBracketRangeSource(pattern, index);
+      if (bracket) {
+        source += bracket.source;
+        index = bracket.end;
+      } else {
+        source += '\\[';
+      }
     } else {
       source += escapeRegExp(char);
     }
   }
   const regex = new RegExp(`^${source}$`);
   return regex.test(value);
+}
+
+function gitignoreBracketRangeSource(pattern, start) {
+  const end = pattern.indexOf(']', start + 1);
+  if (end === -1) {
+    return null;
+  }
+
+  let content = pattern.slice(start + 1, end);
+  if (content.length === 0) {
+    return null;
+  }
+
+  const negated = content.startsWith('!');
+  if (negated) {
+    content = content.slice(1);
+  }
+  if (content.length === 0) {
+    return null;
+  }
+
+  return {
+    source: `[${negated ? '^' : ''}${escapeRegExpCharClass(content)}]`,
+    end,
+  };
+}
+
+function escapeRegExpCharClass(value) {
+  return value.replace(/\\/g, '\\\\').replace(/\]/g, '\\]').replace(/\[/g, '\\[').replace(/\^/g, '\\^');
 }
 
 function installAdapter(run, adapter) {

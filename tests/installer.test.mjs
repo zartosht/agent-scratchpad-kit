@@ -513,7 +513,7 @@ runTest('later broad .agent ignore is corrected even when rules already exist', 
 });
 
 runTest('later wildcard ignores are corrected even when scratchpad rules already exist', () => {
-  for (const wildcardRule of ['*.md', '*', '.agent/**/*.md']) {
+  for (const wildcardRule of ['*.md', '*', '.agent/**/*.md', '.agent/[A-Z]*.md']) {
     const target = tempDir();
     writeFileSync(
       join(target, '.gitignore'),
@@ -541,6 +541,35 @@ runTest('later wildcard ignores are corrected even when scratchpad rules already
     assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true, wildcardRule);
     assert.equal(isIgnored(target, '.agent/backups/example.txt'), true, wildcardRule);
   }
+});
+
+runTest('ignored parent directories are corrected before tracked scaffold reincludes', () => {
+  const target = tempDir();
+  writeFileSync(
+    join(target, '.gitignore'),
+    [
+      '# Agent Scratchpad local state',
+      '!.agent/',
+      '.agent/',
+      '!.agent/README.md',
+      '!.agent/SCRATCHPAD.template.md',
+      '!.agent/VERSION',
+      '.agent/SCRATCHPAD.local.md',
+      '.agent/backups/',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' });
+
+  const result = runInstaller([target, '--no-adapters']);
+  assert.equal(result.status, 0, result.stderr);
+
+  assert.equal(isIgnored(target, '.agent/README.md'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.template.md'), false);
+  assert.equal(isIgnored(target, '.agent/VERSION'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true);
+  assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
 });
 
 runTest('annotated gitignore rules are not treated as effective scratchpad rules', () => {

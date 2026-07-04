@@ -342,7 +342,7 @@ function writeIfChanged(relPath, next) {
   const abs = join(repoRoot, relPath);
   const current = existsSync(abs) ? readFileSync(abs, 'utf8') : null;
 
-  if (current === next) {
+  if (current === next || (checkOnly && lineEndingsMatchForCheck(relPath, current, next))) {
     record('unchanged', relPath);
     return;
   }
@@ -397,6 +397,23 @@ function readText(relPath) {
 
 function normalizeLineEndings(value) {
   return value.replace(/\r\n/g, '\n');
+}
+
+function lineEndingsMatchForCheck(relPath, current, next) {
+  return current !== null
+    && isLineEndingTolerantGeneratedPath(relPath)
+    && normalizeLineEndings(current) === normalizeLineEndings(next);
+}
+
+function isLineEndingTolerantGeneratedPath(relPath) {
+  const lower = relPath.toLowerCase();
+  return lower.endsWith('.md')
+    || lower.endsWith('.mdc')
+    || lower.endsWith('.yml')
+    || lower.endsWith('.yaml')
+    || lower.endsWith('.json')
+    || relPath === 'VERSION'
+    || relPath.endsWith('/VERSION');
 }
 
 function record(status, path) {

@@ -48,6 +48,11 @@ function runCrlfGeneratedExampleCheck() {
     });
 
     for (const relPath of [
+      '.agent/VERSION',
+      '.agents/plugins/marketplace.json',
+      'codex-plugin/.codex-plugin/plugin.json',
+      'codex-plugin/VERSION',
+      'claude-plugin/.claude-plugin/plugin.json',
       'examples/multi-agent/AGENTS.md',
       'codex-plugin/examples/multi-agent/AGENTS.md',
       'claude-plugin/examples/multi-agent/AGENTS.md',
