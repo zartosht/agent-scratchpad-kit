@@ -71,6 +71,7 @@ const ADAPTERS = [
     target: 'CONVENTIONS.md',
     source: 'adapters/CONVENTIONS.md',
     aiderConfig: true,
+    supportTargets: [AIDER_CONFIG_TARGET],
   },
 ];
 
@@ -363,7 +364,12 @@ function updateGitignore(run) {
     const relPath = '.gitignore';
     const destAbs = safePath(run, relPath);
     const existing = existsSync(destAbs) ? readFileSync(destAbs, 'utf8') : null;
-    const updated = buildGitignoreContent(existing, gitignoreMatchOptions(run));
+    const updated = buildGitignoreContent(
+      existing,
+      gitignoreMatchOptions(run),
+      rootGitignoreRules(run),
+      rootGitignoreExpectations(run),
+    );
 
     if (existing === updated) {
       record(run, 'unchanged', relPath, 'required ignore rules already present');
@@ -381,6 +387,55 @@ function updateGitignore(run) {
   } catch (error) {
     fail(run, '.gitignore', error);
   }
+}
+
+function rootGitignoreRules(run) {
+  return [
+    ...GITIGNORE_RULES,
+    ...adapterGitignoreRules(run.selectedAdapters),
+  ];
+}
+
+function rootGitignoreExpectations(run) {
+  return [
+    ...ROOT_GITIGNORE_EXPECTATIONS,
+    ...adapterGitignoreTargets(run.selectedAdapters).map(path => ({ path, ignored: false })),
+  ];
+}
+
+function adapterGitignoreRules(adapters) {
+  const rules = [];
+  const seen = new Set();
+  const add = (rule) => {
+    if (!seen.has(rule)) {
+      seen.add(rule);
+      rules.push(rule);
+    }
+  };
+
+  for (const target of adapterGitignoreTargets(adapters)) {
+    const parts = target.split('/');
+    for (let index = 1; index < parts.length; index += 1) {
+      add(`!${parts.slice(0, index).join('/')}/`);
+    }
+    add(`!${target}`);
+  }
+
+  return rules;
+}
+
+function adapterGitignoreTargets(adapters) {
+  const targets = [];
+  const seen = new Set();
+  for (const adapter of adapters) {
+    for (const target of [adapter.target, ...(adapter.supportTargets ?? [])]) {
+      if (!seen.has(target)) {
+        seen.add(target);
+        targets.push(target);
+      }
+    }
+  }
+  return targets;
 }
 
 function updateNestedAgentGitignore(run) {
@@ -436,7 +491,7 @@ function buildGitignoreContent(
   for (const line of lines) {
     const rule = line.split('#')[0].trim();
     for (const required of requiredRules) {
-      if (rule === required || rule === `/${required}`) {
+      if (gitignoreRuleTextMatchesRequired(rule, required)) {
         present.add(required);
       }
     }
@@ -454,6 +509,16 @@ function buildGitignoreContent(
     return block;
   }
   return existing.endsWith('\n') ? `${existing}${block}` : `${existing}\n${block}`;
+}
+
+function gitignoreRuleTextMatchesRequired(rule, required) {
+  if (rule === required) {
+    return true;
+  }
+  if (required.startsWith('!')) {
+    return rule === `!/${required.slice(1)}`;
+  }
+  return rule === `/${required}`;
 }
 
 function gitignoreMatchOptions(run) {
@@ -794,11 +859,18 @@ function mergeAiderConfig(existing) {
         detail: 'indented read entries are not safe to edit automatically; add CONVENTIONS.md manually',
       };
     }
-    if (hasTopLevelYamlFlowMapping(lines)) {
+    if (hasYamlFlowMapping(lines)) {
       return {
         status: 'skipped',
         reason: 'skipped-ambiguous-aider-config',
-        detail: 'top-level flow-style YAML mappings are not safe to edit automatically; add CONVENTIONS.md manually',
+        detail: 'flow-style YAML mappings are not safe to edit automatically; add CONVENTIONS.md manually',
+      };
+    }
+    if (hasYamlDocumentMarker(lines)) {
+      return {
+        status: 'skipped',
+        reason: 'skipped-ambiguous-aider-config',
+        detail: 'YAML document markers are not safe to edit automatically; add CONVENTIONS.md manually',
       };
     }
     return {
@@ -847,14 +919,15 @@ function appendAiderReadConfig(existing) {
   return `${existing}${separator}${defaultAiderConfigContent()}`;
 }
 
-function hasTopLevelYamlFlowMapping(lines) {
+function hasYamlFlowMapping(lines) {
   return lines.some(line => {
-    if (/^\s/.test(line)) {
-      return false;
-    }
     const trimmed = stripYamlLineComment(line).trim();
     return trimmed.startsWith('{');
   });
+}
+
+function hasYamlDocumentMarker(lines) {
+  return lines.some(line => ['---', '...'].includes(stripYamlLineComment(line).trim()));
 }
 
 function hasIndentedAiderRead(lines) {
@@ -962,8 +1035,8 @@ function findYamlBlockEnd(lines, start) {
 }
 
 function yamlListItemMatches(line, expected) {
-  const match = line.match(/^\s*-\s+(.+?)\s*(?:#.*)?$/);
-  return Boolean(match && yamlScalarMatches(match[1], expected));
+  const match = line.match(/^\s*-\s+(.+)$/);
+  return Boolean(match && yamlScalarMatches(stripYamlLineComment(match[1]).trim(), expected));
 }
 
 function yamlScalarMatches(value, expected) {

@@ -248,6 +248,25 @@ function runGeneratedPackageSymlinkCheck() {
     });
     assert.notEqual(check.status, 0, `${check.stdout}\n${check.stderr}`);
     assert.match(check.stdout, /symlink not allowed in generated tree/);
+
+    const outsideFile = join(tempRoot, 'outside-init.mjs');
+    const generatedInstaller = join(tempRepo, 'codex-plugin/installers/init.mjs');
+    writeFileSync(outsideFile, 'outside file must remain untouched\n', 'utf8');
+    rmSync(generatedInstaller, { force: true });
+    symlinkSync(outsideFile, generatedInstaller);
+    writeFileSync(
+      join(tempRepo, 'installers/init.mjs'),
+      `${readFileSync(join(tempRepo, 'installers/init.mjs'), 'utf8')}\n// force sync drift\n`,
+      'utf8',
+    );
+
+    const write = spawnSync(process.execPath, ['scripts/sync-packages.mjs'], {
+      cwd: tempRepo,
+      encoding: 'utf8',
+    });
+    assert.notEqual(write.status, 0, `${write.stdout}\n${write.stderr}`);
+    assert.match(write.stdout, /codex-plugin\/installers\/init\.mjs: symlink not allowed in generated tree/);
+    assert.equal(readFileSync(outsideFile, 'utf8'), 'outside file must remain untouched\n');
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

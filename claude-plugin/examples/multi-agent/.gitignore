@@ -5,3 +5,13 @@
 !.agent/VERSION
 .agent/SCRATCHPAD.local.md
 .agent/backups/
+!AGENTS.md
+!CLAUDE.md
+!.github/
+!.github/copilot-instructions.md
+!GEMINI.md
+!.cursor/
+!.cursor/rules/
+!.cursor/rules/agent-scratchpad.mdc
+!CONVENTIONS.md
+!.aider.conf.yml

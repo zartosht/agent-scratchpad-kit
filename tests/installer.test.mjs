@@ -168,6 +168,19 @@ runTest('Aider read comments are ignored when checking existing target', () => {
   assert.equal(existsSync(join(target, '.agent/backups')), false);
 });
 
+runTest('Aider list item hashes are preserved unless separated as comments', () => {
+  const target = tempDir();
+  const before = 'read:\n  - CONVENTIONS.md#backup\n';
+  writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
+
+  const result = runInstaller([target, '--agent', 'aider']);
+  assert.equal(result.status, 0, result.stderr);
+  const content = read(join(target, '.aider.conf.yml'));
+  assert.match(content, /^  - CONVENTIONS\.md#backup$/m);
+  assert.match(content, /^  - CONVENTIONS\.md$/m);
+  assert.equal(read(findBackup(target, '.aider.conf.yml')), before);
+});
+
 runTest('ambiguous Aider read config requires manual action', () => {
   const target = tempDir();
   const before = 'read: "./existing file.md"\n';
@@ -183,7 +196,23 @@ runTest('flow-style Aider mappings require manual action', () => {
   for (const before of [
     '{model: gpt-4, read: EXISTING.md}\n',
     '{model: gpt-4, read: EXISTING.md} # existing\n',
+    '  {model: gpt-4, read: EXISTING.md}\n',
     '{\n  model: gpt-4,\n  read: EXISTING.md\n}\n',
+  ]) {
+    const target = tempDir();
+    writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
+
+    const result = runInstaller([target, '--agent', 'aider']);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stdout, /skipped-ambiguous-aider-config/);
+    assert.equal(read(join(target, '.aider.conf.yml')), before);
+  }
+});
+
+runTest('Aider document markers require manual action before appending read', () => {
+  for (const before of [
+    'model: gpt-4\n...\n',
+    '---\nmodel: gpt-4\n',
   ]) {
     const target = tempDir();
     writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
@@ -643,6 +672,39 @@ runTest('later wildcard ignores are corrected even when scratchpad rules already
     assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true, wildcardRule);
     assert.equal(isIgnored(target, '.agent/backups/example.txt'), true, wildcardRule);
   }
+});
+
+runTest('selected adapter files are unignored when broad rules hide them', () => {
+  const target = tempDir();
+  writeFileSync(
+    join(target, '.gitignore'),
+    [
+      '*.md',
+      '.github/',
+      '.cursor/',
+      '.aider.conf.yml',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' });
+
+  const result = runInstaller([target]);
+  assert.equal(result.status, 0, result.stderr);
+
+  for (const relPath of [
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.github/copilot-instructions.md',
+    'GEMINI.md',
+    '.cursor/rules/agent-scratchpad.mdc',
+    'CONVENTIONS.md',
+    '.aider.conf.yml',
+  ]) {
+    assert.equal(isIgnored(target, relPath), false, relPath);
+  }
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true);
+  assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
 });
 
 runTest('nested .agent gitignore rules are corrected when they hide scaffold files', () => {

@@ -2,6 +2,7 @@
 
 import {
   existsSync,
+  lstatSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -11,7 +12,7 @@ import {
   writeFileSync,
 } from 'fs';
 import { tmpdir } from 'os';
-import { dirname, join, relative, resolve } from 'path';
+import { dirname, join, relative, resolve, sep } from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
@@ -410,6 +411,15 @@ function writeJson(relPath, value) {
 
 function writeIfChanged(relPath, next) {
   const abs = join(repoRoot, relPath);
+  if (hasSymlinkInPath(abs)) {
+    fail(relPath, 'symlink not allowed in generated tree');
+    return;
+  }
+  if (existsSync(abs) && !lstatSync(abs).isFile()) {
+    fail(relPath, 'generated path is not a file');
+    return;
+  }
+
   const current = existsSync(abs) ? readFileSync(abs, 'utf8') : null;
 
   if (current === next || (checkOnly && lineEndingsMatchForCheck(relPath, current, next))) {
@@ -463,6 +473,26 @@ function listFilesAbs(absDir, prefix = '') {
   }
 
   return output.sort();
+}
+
+function hasSymlinkInPath(absPath) {
+  const rel = relative(repoRoot, absPath);
+  if (!rel || rel === '.') {
+    return false;
+  }
+
+  const parts = rel.split(sep);
+  let current = repoRoot;
+  for (const part of parts) {
+    current = join(current, part);
+    if (!existsSync(current)) {
+      continue;
+    }
+    if (lstatSync(current).isSymbolicLink()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function readText(relPath) {
