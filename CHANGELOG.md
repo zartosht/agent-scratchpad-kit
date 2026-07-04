@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-04
+
+### Added
+
+- Adapter installation defaults to all supported agents during explicit bootstrap and direct CLI installs.
+- Managed adapter blocks with version and checksum metadata.
+- Safe merge behavior for existing instruction files, including backups under `.agent/backups/`.
+- `--agent`, `--no-adapters`, `--dry-run`, `--repair`, `--force-managed-block`, and `--version` installer options.
+- `.agent/VERSION` scaffold file.
+- Canonical `VERSION` source, package metadata, sync script, validation scripts, and CI workflow.
+- Multi-agent installed example.
+- Root `AGENTS.md` contributor guidance for this repository.
+
+### Changed
+
+- Skill instructions now separate installed workflow, bootstrap, and repair modes.
+- Plugin packages are generated from canonical sources instead of being manually duplicated.
+- Documentation now states supported-agent discovery limits and commit requirements for tracked scaffold and adapter files.
+
+### Security
+
+- Existing instruction files are backed up before modification.
+- User-edited managed blocks require `--force-managed-block` before replacement.
+- Local scratchpads and backups remain ignored by git.
+
 ## [0.1.0] - 2026-07-03
 
 ### Added
