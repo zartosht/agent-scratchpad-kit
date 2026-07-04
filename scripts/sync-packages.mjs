@@ -200,17 +200,27 @@ function syncClaudeMarketplace() {
 function syncCodexMarketplace() {
   const relPath = '.agents/plugins/marketplace.json';
   const json = JSON.parse(readText(relPath));
+  const expectedSource = expectedCodexMarketplaceSource();
   let found = false;
   for (const plugin of json.plugins ?? []) {
-    if (plugin.name === 'agent-scratchpad' && plugin.source?.ref) {
+    if (plugin.name === 'agent-scratchpad') {
       found = true;
-      plugin.source.ref = `v${version}`;
+      plugin.source = expectedSource;
     }
   }
   if (!found) {
-    fail(relPath, 'missing agent-scratchpad plugin entry with source.ref');
+    fail(relPath, 'missing agent-scratchpad plugin entry');
   }
   writeJson(relPath, json);
+}
+
+function expectedCodexMarketplaceSource() {
+  return {
+    source: 'git-subdir',
+    url: 'https://github.com/zartosht/agent-scratchpad-kit.git',
+    path: './codex-plugin',
+    ref: `v${version}`,
+  };
 }
 
 function syncVersionFiles() {
@@ -370,11 +380,9 @@ function validateSkillsPath(manifestRelPath, pluginRoot, skillsPath) {
 function validateMarketplaceFiles() {
   const codex = findPlugin('.agents/plugins/marketplace.json');
   if (codex) {
-    if (codex.source?.path !== './codex-plugin') {
-      fail('.agents/plugins/marketplace.json', 'agent-scratchpad source.path must be ./codex-plugin');
-    }
-    if (codex.source?.ref !== `v${version}`) {
-      fail('.agents/plugins/marketplace.json', `agent-scratchpad source.ref must be v${version}`);
+    const expectedSource = expectedCodexMarketplaceSource();
+    if (JSON.stringify(codex.source) !== JSON.stringify(expectedSource)) {
+      fail('.agents/plugins/marketplace.json', 'agent-scratchpad source must match canonical git-subdir source');
     }
   }
 

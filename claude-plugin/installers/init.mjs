@@ -355,7 +355,7 @@ function shouldPreserveExistingScaffold(run, relPath, desired) {
     return false;
   }
 
-  return existing !== desired;
+  return normalizeLineEndings(existing) !== normalizeLineEndings(desired);
 }
 
 function updateGitignore(run) {
@@ -625,7 +625,7 @@ function gitignoreBracketRangeSource(pattern, start) {
     return null;
   }
 
-  const negated = content.startsWith('!');
+  const negated = content.startsWith('!') || content.startsWith('^');
   if (negated) {
     content = content.slice(1);
   }
@@ -1008,7 +1008,10 @@ function mergeAdapterContent({
   }
 
   if (managed.block) {
-    if (normalizeLineEndings(managed.block.raw) === block) {
+    if (
+      normalizeLineEndings(managed.block.raw) === block
+      && cursorFrontmatterIsCurrent(existing, managed.block, adapter, sourceParts)
+    ) {
       return { status: 'unchanged' };
     }
 
@@ -1023,7 +1026,7 @@ function mergeAdapterContent({
 
     return {
       status: 'updated',
-      content: `${existing.slice(0, managed.block.start)}${block}${existing.slice(managed.block.end)}`,
+      content: replaceManagedBlock(existing, managed.block, block, adapter, sourceParts),
     };
   }
 
@@ -1137,6 +1140,35 @@ function isKnownLegacyAdapter(adapter, existing, sourceRaw, sourceBody) {
 
   return candidates.includes(existingNormalized)
     || sha256(existingNormalized) === LEGACY_ADAPTER_SHA256[adapter.source];
+}
+
+function replaceManagedBlock(existing, managedBlock, block, adapter, sourceParts) {
+  const updated = `${existing.slice(0, managedBlock.start)}${block}${existing.slice(managedBlock.end)}`;
+  return replaceManagedCursorFrontmatter(updated, managedBlock.start, adapter, sourceParts);
+}
+
+function cursorFrontmatterIsCurrent(existing, managedBlock, adapter, sourceParts) {
+  if (!adapter.cursorMdc || !cursorFrontmatterCanBeManaged(existing, managedBlock.start)) {
+    return true;
+  }
+  const { frontmatter } = splitLeadingFrontmatter(existing);
+  return normalizeLineEndings(frontmatter) === normalizeLineEndings(sourceParts.frontmatter);
+}
+
+function replaceManagedCursorFrontmatter(content, managedBlockStart, adapter, sourceParts) {
+  if (!adapter.cursorMdc || !cursorFrontmatterCanBeManaged(content, managedBlockStart)) {
+    return content;
+  }
+  const { frontmatter, body } = splitLeadingFrontmatter(content);
+  if (normalizeLineEndings(frontmatter) === normalizeLineEndings(sourceParts.frontmatter)) {
+    return content;
+  }
+  return `${sourceParts.frontmatter}${body}`;
+}
+
+function cursorFrontmatterCanBeManaged(content, managedBlockStart) {
+  const { frontmatter } = splitLeadingFrontmatter(content);
+  return managedBlockStart === 0 || managedBlockStart === frontmatter.length;
 }
 
 function appendAdapterBlock(existing, block, cursorMdc) {

@@ -395,6 +395,23 @@ runTest('--repair updates generated scaffold version files', () => {
   assert.equal(read(join(target, '.agent/VERSION')).trim(), version);
 });
 
+runTest('--repair treats CRLF-only scaffold differences as generated', () => {
+  const target = tempDir();
+  assert.equal(runInstaller([target, '--no-adapters']).status, 0);
+  const readmePath = join(target, '.agent/README.md');
+  const templatePath = join(target, '.agent/SCRATCHPAD.template.md');
+  const readme = read(readmePath);
+  const template = read(templatePath);
+  writeFileSync(readmePath, toCrLf(readme), 'utf8');
+  writeFileSync(templatePath, toCrLf(template), 'utf8');
+
+  const result = runInstaller([target, '--no-adapters', '--repair']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /skipped-user-edited-scaffold/);
+  assert.equal(read(readmePath), readme);
+  assert.equal(read(templatePath), template);
+});
+
 runTest('--repair continues adapter install when scaffold needs manual action', () => {
   const target = tempDir();
   mkdirSync(join(target, '.agent'));
@@ -504,6 +521,35 @@ runTest('Cursor adapter preserves CRLF frontmatter while appending block', () =>
   assert.match(content, /Existing body/);
 });
 
+runTest('Cursor adapter upgrades generated frontmatter when managed block is current', () => {
+  const target = tempDir();
+  const cursorPath = join(target, '.cursor/rules/agent-scratchpad.mdc');
+  assert.equal(runInstaller([target, '--agent', 'cursor']).status, 0);
+
+  const staleFrontmatter = [
+    '---',
+    'description: Stale Agent Scratchpad rule',
+    'globs: "**/*.md"',
+    'alwaysApply: false',
+    '---',
+    '',
+  ].join('\n');
+  writeFileSync(
+    cursorPath,
+    read(cursorPath).replace(/^---\n[\s\S]*?\n---\n/, staleFrontmatter),
+    'utf8',
+  );
+
+  const result = runInstaller([target, '--agent', 'cursor']);
+  assert.equal(result.status, 0, result.stderr);
+  const content = read(cursorPath);
+  assert.match(content, /^description: Use the Agent Scratchpad workflow/m);
+  assert.match(content, /^globs: "\*\*\/\*"$/m);
+  assert.match(content, /^alwaysApply: true$/m);
+  assert.doesNotMatch(content, /Stale Agent Scratchpad rule/);
+  assert.equal((content.match(/BEGIN Agent Scratchpad Kit/g) ?? []).length, 1);
+});
+
 runTest('.gitignore failure stops before backup-producing writes', () => {
   const target = tempDir();
   mkdirSync(join(target, '.gitignore'));
@@ -567,6 +613,7 @@ runTest('later wildcard ignores are corrected even when scratchpad rules already
     '.agent/**/*.md',
     '.agent/[A-Z]*.md',
     '.agent/[[:upper:]]*.md',
+    '.agent/[^a-z]*.md',
     '.agent/README\\.md',
   ]) {
     const target = tempDir();
@@ -918,6 +965,10 @@ function isIgnored(target, relPath) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function toCrLf(value) {
+  return value.replace(/\r?\n/g, '\r\n');
 }
 
 function isRoot() {

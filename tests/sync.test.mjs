@@ -33,6 +33,7 @@ runCrlfSkillMetadataSyncCheck();
 runCrlfGeneratedExampleCheck();
 runScaffoldCanonicalSourceSyncCheck();
 runGeneratedPluginManifestDriftCheck();
+runCodexMarketplaceSourceDriftCheck();
 
 console.log('ok - packaged plugin copies are synced');
 
@@ -178,6 +179,36 @@ function runGeneratedPluginManifestDriftCheck() {
     assert.notEqual(check.status, 0, `${check.stdout}\n${check.stderr}`);
     assert.match(check.stdout, /codex-plugin\/\.codex-plugin\/plugin\.json: content drift/);
     assert.match(check.stdout, /claude-plugin\/\.claude-plugin\/plugin\.json: content drift/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function runCodexMarketplaceSourceDriftCheck() {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'agent-scratchpad-sync-'));
+  const tempRepo = join(tempRoot, 'repo');
+  try {
+    cpSync(repoRoot, tempRepo, {
+      recursive: true,
+      filter: src => {
+        const parts = relative(repoRoot, src).split(/[\\/]/);
+        return !parts.includes('.git') && !parts.includes('node_modules');
+      },
+    });
+
+    const marketplacePath = join(tempRepo, '.agents/plugins/marketplace.json');
+    const marketplace = JSON.parse(readFileSync(marketplacePath, 'utf8'));
+    const plugin = marketplace.plugins.find(entry => entry.name === 'agent-scratchpad');
+    plugin.source.source = 'git';
+    plugin.source.url = 'https://github.com/example/wrong-repo.git';
+    writeFileSync(marketplacePath, `${JSON.stringify(marketplace, null, 2)}\n`, 'utf8');
+
+    const check = spawnSync(process.execPath, ['scripts/sync-packages.mjs', '--check'], {
+      cwd: tempRepo,
+      encoding: 'utf8',
+    });
+    assert.notEqual(check.status, 0, `${check.stdout}\n${check.stderr}`);
+    assert.match(check.stdout, /\.agents\/plugins\/marketplace\.json: content drift/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
