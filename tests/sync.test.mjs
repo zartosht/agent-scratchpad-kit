@@ -27,11 +27,43 @@ assert.equal(read('codex-plugin/examples/minimal/.agent/README.md'), read('.agen
 assert.equal(read('claude-plugin/examples/minimal/.agent/SCRATCHPAD.template.md'), read('.agent/SCRATCHPAD.template.md'));
 
 runCrlfSkillMetadataSyncCheck();
+runCrlfGeneratedExampleCheck();
 
 console.log('ok - packaged plugin copies are synced');
 
 function read(relPath) {
   return readFileSync(join(repoRoot, relPath), 'utf8');
+}
+
+function runCrlfGeneratedExampleCheck() {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'agent-scratchpad-sync-'));
+  const tempRepo = join(tempRoot, 'repo');
+  try {
+    cpSync(repoRoot, tempRepo, {
+      recursive: true,
+      filter: src => {
+        const parts = relative(repoRoot, src).split(/[\\/]/);
+        return !parts.includes('.git') && !parts.includes('node_modules');
+      },
+    });
+
+    for (const relPath of [
+      'examples/multi-agent/AGENTS.md',
+      'codex-plugin/examples/multi-agent/AGENTS.md',
+      'claude-plugin/examples/multi-agent/AGENTS.md',
+    ]) {
+      const absPath = join(tempRepo, relPath);
+      writeFileSync(absPath, readFileSync(absPath, 'utf8').replace(/\r?\n/g, '\r\n'), 'utf8');
+    }
+
+    const check = spawnSync(process.execPath, ['scripts/sync-packages.mjs', '--check'], {
+      cwd: tempRepo,
+      encoding: 'utf8',
+    });
+    assert.equal(check.status, 0, `${check.stdout}\n${check.stderr}`);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 }
 
 function runCrlfSkillMetadataSyncCheck() {

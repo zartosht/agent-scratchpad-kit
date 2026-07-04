@@ -227,7 +227,7 @@ function compareDirectories(actualRel, expectedAbs) {
     }
     const actual = readText(join(actualRel, file));
     const expected = readFileSync(join(expectedAbs, file), 'utf8');
-    if (actual !== expected) {
+    if (normalizeLineEndings(actual) !== normalizeLineEndings(expected)) {
       fail(join(actualRel, file), 'content drift');
       drift = true;
     }
@@ -393,6 +393,10 @@ function listFilesAbs(absDir, prefix = '') {
 
 function readText(relPath) {
   return readFileSync(join(repoRoot, relPath), 'utf8');
+}
+
+function normalizeLineEndings(value) {
+  return value.replace(/\r\n/g, '\n');
 }
 
 function record(status, path) {

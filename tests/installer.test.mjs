@@ -7,6 +7,7 @@ import {
   readFileSync,
   readdirSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from 'fs';
 import { tmpdir } from 'os';
@@ -122,6 +123,10 @@ runTest('Aider config merges safe existing read settings and backs them up', () 
       expected: /^read: \[EXISTING\.md, CONVENTIONS\.md\]$/m,
     },
     {
+      before: '"read": EXISTING.md\n',
+      expected: /^"read": \[EXISTING\.md, CONVENTIONS\.md\]$/m,
+    },
+    {
       before: 'read:\n  - EXISTING.md\n',
       expected: /^  - CONVENTIONS\.md$/m,
     },
@@ -167,18 +172,19 @@ runTest('Aider config is skipped when the Aider adapter fails to install', () =>
 
 runTest('Aider config is skipped when the Aider adapter requires manual action', () => {
   const target = tempDir();
-  const ambiguousLegacy = [
-    '## Agent Scratchpad workflow',
-    '',
-    'This repository uses the **Agent Scratchpad** workflow, but this copy has local edits.',
-    'See `.agent/SCRATCHPAD.template.md` and `.agent/SCRATCHPAD.local.md`.',
-    '',
-  ].join('\n');
-  writeFileSync(join(target, 'CONVENTIONS.md'), ambiguousLegacy, 'utf8');
+  assert.equal(runInstaller([target, '--agent', 'aider']).status, 0);
+
+  const adapterPath = join(target, 'CONVENTIONS.md');
+  writeFileSync(
+    adapterPath,
+    read(adapterPath).replace('durable working memory', 'durable custom working memory'),
+    'utf8',
+  );
+  unlinkSync(join(target, '.aider.conf.yml'));
 
   const result = runInstaller([target, '--agent', 'aider']);
   assert.notEqual(result.status, 0);
-  assert.match(result.stdout, /manual-action-required: CONVENTIONS\.md/);
+  assert.match(result.stdout, /skipped-user-edited-managed-block/);
   assert.equal(existsSync(join(target, '.aider.conf.yml')), false);
 });
 
@@ -241,25 +247,36 @@ runTest('existing instruction files are preserved outside managed blocks and bac
 });
 
 runTest('project-specific scratchpad mentions are not treated as legacy adapters', () => {
-  const target = tempDir();
-  const existing = [
-    '# Agent Instructions',
-    '',
-    'This repo is comparing Agent Scratchpad adoption options.',
-    'Review `.agent/SCRATCHPAD.template.md` before creating examples.',
-    'Do not commit `.agent/SCRATCHPAD.local.md` from local experiments.',
-    '',
-  ].join('\n');
-  writeFileSync(join(target, 'AGENTS.md'), existing, 'utf8');
+  for (const existing of [
+    [
+      '# Agent Instructions',
+      '',
+      'This repo is comparing Agent Scratchpad adoption options.',
+      'Review `.agent/SCRATCHPAD.template.md` before creating examples.',
+      'Do not commit `.agent/SCRATCHPAD.local.md` from local experiments.',
+      '',
+    ].join('\n'),
+    [
+      '## Agent Scratchpad workflow',
+      '',
+      'This repository uses the **Agent Scratchpad** workflow as local project prose, not generated adapter text.',
+      'Keep `.agent/SCRATCHPAD.template.md` tracked.',
+      'Keep `.agent/SCRATCHPAD.local.md` ignored.',
+      '',
+    ].join('\n'),
+  ]) {
+    const target = tempDir();
+    writeFileSync(join(target, 'AGENTS.md'), existing, 'utf8');
 
-  const result = runInstaller([target, '--agent', 'codex']);
-  assert.equal(result.status, 0, result.stderr);
-  assert.doesNotMatch(result.stdout, /skipped-legacy-section/);
+    const result = runInstaller([target, '--agent', 'codex']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /skipped-legacy-section/);
 
-  const content = read(join(target, 'AGENTS.md'));
-  assert.equal(content.startsWith(existing), true);
-  assert.match(content, /BEGIN Agent Scratchpad Kit v/);
-  assert.equal(read(findBackup(target, 'AGENTS.md')), existing);
+    const content = read(join(target, 'AGENTS.md'));
+    assert.equal(content.startsWith(existing), true);
+    assert.match(content, /BEGIN Agent Scratchpad Kit v/);
+    assert.equal(read(findBackup(target, 'AGENTS.md')), existing);
+  }
 });
 
 runTest('legacy unmarked scratchpad text is skipped unless repair can prove it is generated', () => {
@@ -496,7 +513,7 @@ runTest('later broad .agent ignore is corrected even when rules already exist', 
 });
 
 runTest('later wildcard ignores are corrected even when scratchpad rules already exist', () => {
-  for (const wildcardRule of ['*.md', '*']) {
+  for (const wildcardRule of ['*.md', '*', '.agent/**/*.md']) {
     const target = tempDir();
     writeFileSync(
       join(target, '.gitignore'),
@@ -524,6 +541,37 @@ runTest('later wildcard ignores are corrected even when scratchpad rules already
     assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true, wildcardRule);
     assert.equal(isIgnored(target, '.agent/backups/example.txt'), true, wildcardRule);
   }
+});
+
+runTest('annotated gitignore rules are not treated as effective scratchpad rules', () => {
+  const target = tempDir();
+  writeFileSync(
+    join(target, '.gitignore'),
+    [
+      '# Agent Scratchpad local state',
+      '!.agent/ # scaffold directory',
+      '!.agent/README.md # tracked readme',
+      '!.agent/SCRATCHPAD.template.md # tracked template',
+      '!.agent/VERSION # tracked version',
+      '.agent/SCRATCHPAD.local.md # local only',
+      '.agent/backups/ # generated backups',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' });
+
+  const result = runInstaller([target, '--no-adapters']);
+  assert.equal(result.status, 0, result.stderr);
+
+  const gitignore = read(join(target, '.gitignore'));
+  assert.match(gitignore, /^\.agent\/SCRATCHPAD\.local\.md$/m);
+  assert.match(gitignore, /^\.agent\/backups\/$/m);
+  assert.equal(isIgnored(target, '.agent/README.md'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.template.md'), false);
+  assert.equal(isIgnored(target, '.agent/VERSION'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true);
+  assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
 });
 
 runTest('unwritable .gitignore does not create backups before failing', () => {

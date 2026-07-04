@@ -87,8 +87,6 @@ const LEGACY_SCRATCHPAD_PATHS = [
   '.agent/SCRATCHPAD.template.md',
 ];
 const LEGACY_SKILL_SOURCE_MARKER = '> Skill source: [Agent Scratchpad Kit](https://github.com/zartosht/agent-scratchpad-kit)';
-const LEGACY_ADAPTER_HEADING_RE = /^(?:# Agent Scratchpad|## Scratchpad convention|## Agent Scratchpad workflow)$/m;
-const LEGACY_ADAPTER_INTRO = 'This repository uses the **Agent Scratchpad** workflow';
 
 const LEGACY_ADAPTER_SHA256 = {
   'adapters/AGENTS.md': '06254c203c280288faa2e79772dee6ff84c0b40bb6ef44d83597e15418db59f8',
@@ -414,9 +412,12 @@ function gitignorePathIgnoredByRelevantRules(lines, path) {
 }
 
 function parseGitignoreRule(line) {
-  let rule = line.split('#')[0].trim();
-  if (!rule) {
+  let rule = line.replace(/\r$/, '').replace(/[ \t]+$/, '');
+  if (!rule || rule.startsWith('#')) {
     return null;
+  }
+  if (rule.startsWith('\\#')) {
+    rule = rule.slice(1);
   }
 
   const negated = rule.startsWith('!');
@@ -450,10 +451,23 @@ function gitignoreRuleMatchesPath(pattern, path) {
 }
 
 function gitignoreGlobMatches(pattern, value) {
-  const regex = new RegExp(`^${pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '[^/]')}$`);
+  let source = '';
+  for (let index = 0; index < pattern.length; index += 1) {
+    if (pattern.startsWith('**/', index)) {
+      source += '(?:.*/)?';
+      index += 2;
+      continue;
+    }
+    const char = pattern[index];
+    if (char === '*') {
+      source += '[^/]*';
+    } else if (char === '?') {
+      source += '[^/]';
+    } else {
+      source += escapeRegExp(char);
+    }
+  }
+  const regex = new RegExp(`^${source}$`);
   return regex.test(value);
 }
 
@@ -548,7 +562,7 @@ function mergeAiderConfig(existing) {
   const readIndexes = [];
 
   lines.forEach((line, index) => {
-    if (/^read\s*:/.test(line)) {
+    if (matchTopLevelAiderRead(line)) {
       readIndexes.push(index);
     }
   });
@@ -568,7 +582,9 @@ function mergeAiderConfig(existing) {
   }
 
   const readIndex = readIndexes[0];
-  const value = lines[readIndex].replace(/^read\s*:\s*/, '').trim();
+  const readMatch = matchTopLevelAiderRead(lines[readIndex]);
+  const readPrefix = readMatch[1];
+  const value = readMatch[2].trim();
   if (value === '') {
     return mergeAiderBlockList(lines, readIndex);
   }
@@ -576,10 +592,10 @@ function mergeAiderConfig(existing) {
     return { status: 'unchanged' };
   }
   if (isYamlInlineList(value)) {
-    return mergeAiderInlineList(lines, readIndex, value);
+    return mergeAiderInlineList(lines, readIndex, value, readPrefix);
   }
   if (isSimpleYamlScalar(value)) {
-    lines[readIndex] = `read: [${value}, ${AIDER_READ_TARGET}]`;
+    lines[readIndex] = `${readPrefix}[${value}, ${AIDER_READ_TARGET}]`;
     return { status: 'updated', content: ensureTrailingNewline(lines.join('\n')) };
   }
 
@@ -636,7 +652,11 @@ function mergeAiderBlockList(lines, readIndex) {
   return { status: 'updated', content: ensureTrailingNewline(lines.join('\n')) };
 }
 
-function mergeAiderInlineList(lines, readIndex, value) {
+function matchTopLevelAiderRead(line) {
+  return line.match(/^((?:read|"read"|'read')\s*:\s*)(.*)$/);
+}
+
+function mergeAiderInlineList(lines, readIndex, value, readPrefix) {
   const inner = value.slice(1, -1).trim();
   const items = inner.length === 0
     ? []
@@ -653,7 +673,7 @@ function mergeAiderInlineList(lines, readIndex, value) {
     };
   }
 
-  lines[readIndex] = `read: [${[...items, AIDER_READ_TARGET].join(', ')}]`;
+  lines[readIndex] = `${readPrefix}[${[...items, AIDER_READ_TARGET].join(', ')}]`;
   return { status: 'updated', content: ensureTrailingNewline(lines.join('\n')) };
 }
 
@@ -737,7 +757,10 @@ function mergeAdapterContent({
     };
   }
 
-  if (hasLegacyScratchpadSection(existing)) {
+  if (
+    hasLegacyScratchpadSection(existing)
+    || isKnownLegacyAdapter(adapter, existing, sourceRaw, sourceParts.body)
+  ) {
     if (repair && isKnownLegacyAdapter(adapter, existing, sourceRaw, sourceParts.body)) {
       return {
         status: 'updated',
@@ -832,12 +855,7 @@ function extractPayloadFromBlock(rawBlock) {
 function hasLegacyScratchpadSection(content) {
   const normalized = normalizeLineEndings(content);
   const hasScratchpadPaths = LEGACY_SCRATCHPAD_PATHS.every(needle => normalized.includes(needle));
-  if (!hasScratchpadPaths) {
-    return false;
-  }
-
-  return normalized.includes(LEGACY_SKILL_SOURCE_MARKER)
-    || (LEGACY_ADAPTER_HEADING_RE.test(normalized) && normalized.includes(LEGACY_ADAPTER_INTRO));
+  return hasScratchpadPaths && normalized.includes(LEGACY_SKILL_SOURCE_MARKER);
 }
 
 function isKnownLegacyAdapter(adapter, existing, sourceRaw, sourceBody) {
