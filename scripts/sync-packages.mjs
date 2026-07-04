@@ -223,9 +223,9 @@ function syncVersionFiles() {
 }
 
 function syncScaffoldFiles() {
-  syncFile('.agent/README.md', 'examples/minimal/.agent/README.md');
-  syncFile('.agent/SCRATCHPAD.template.md', 'examples/minimal/.agent/SCRATCHPAD.template.md');
-  syncFile('.agent/SCRATCHPAD.template.md', 'skills/agent-scratchpad/references/SCRATCHPAD.template.md');
+  syncFile('examples/minimal/.agent/README.md', '.agent/README.md');
+  syncFile('skills/agent-scratchpad/references/SCRATCHPAD.template.md', '.agent/SCRATCHPAD.template.md');
+  syncFile('skills/agent-scratchpad/references/SCRATCHPAD.template.md', 'examples/minimal/.agent/SCRATCHPAD.template.md');
 }
 
 function syncMultiAgentExample() {

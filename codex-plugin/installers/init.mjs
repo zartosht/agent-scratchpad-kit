@@ -494,10 +494,18 @@ function gitignorePathIgnoredByRelevantRules(lines, path, options = {}) {
       if (parsed.negated && gitignoreHasIgnoredParent(ignoredByPath, candidate)) {
         continue;
       }
-      ignoredByPath.set(candidate, !parsed.negated);
+      gitignoreSetIgnoredState(ignoredByPath, paths, candidate, !parsed.negated);
     }
   }
   return ignoredByPath.get(path) ?? false;
+}
+
+function gitignoreSetIgnoredState(ignoredByPath, paths, candidate, ignored) {
+  for (const path of paths) {
+    if (path === candidate || path.startsWith(`${candidate}/`)) {
+      ignoredByPath.set(path, ignored);
+    }
+  }
 }
 
 function gitignoreParentPaths(path) {
@@ -568,7 +576,7 @@ function gitignoreRuleMatchesPath(rule, path, options = {}) {
 function gitignoreDirectoryRuleMatchesPath(pattern, path, anchored, options) {
   const prefix = pattern.slice(0, -1);
   if (anchored || prefix.includes('/')) {
-    return path === prefix || path.startsWith(`${prefix}/`);
+    return [...gitignoreParentPaths(path), path].some(candidate => gitignoreGlobMatches(prefix, candidate, options));
   }
 
   return path.split('/').some(segment => gitignoreGlobMatches(prefix, segment, options));

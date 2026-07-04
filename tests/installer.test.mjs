@@ -692,6 +692,40 @@ runTest('directory-only basename gitignore rules are checked at any depth', () =
   assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
 });
 
+runTest('directory negations with slashes are corrected for descendant files', () => {
+  for (const directoryNegation of [
+    '!.agent/backups',
+    '!/.agent/b*/',
+  ]) {
+    const target = tempDir();
+    writeFileSync(
+      join(target, '.gitignore'),
+      [
+        '# Agent Scratchpad local state',
+        '!.agent/',
+        '!.agent/README.md',
+        '!.agent/SCRATCHPAD.template.md',
+        '!.agent/VERSION',
+        '.agent/SCRATCHPAD.local.md',
+        '.agent/backups/',
+        directoryNegation,
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' });
+
+    const result = runInstaller([target, '--no-adapters']);
+    assert.equal(result.status, 0, result.stderr);
+
+    assert.equal(isIgnored(target, '.agent/README.md'), false, directoryNegation);
+    assert.equal(isIgnored(target, '.agent/SCRATCHPAD.template.md'), false, directoryNegation);
+    assert.equal(isIgnored(target, '.agent/VERSION'), false, directoryNegation);
+    assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true, directoryNegation);
+    assert.equal(isIgnored(target, '.agent/backups/example.txt'), true, directoryNegation);
+  }
+});
+
 runTest('core.ignoreCase is honored for gitignore effectiveness checks', () => {
   const target = tempDir();
   writeFileSync(

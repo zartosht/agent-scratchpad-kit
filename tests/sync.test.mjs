@@ -20,14 +20,18 @@ assert.equal(read('claude-plugin/skills/agent-scratchpad/SKILL.md'), rootSkill);
 
 assert.equal(read('codex-plugin/adapters/AGENTS.md'), read('adapters/AGENTS.md'));
 assert.equal(read('claude-plugin/installers/init.mjs'), read('installers/init.mjs'));
-assert.equal(read('examples/minimal/.agent/README.md'), read('.agent/README.md'));
-assert.equal(read('examples/minimal/.agent/SCRATCHPAD.template.md'), read('.agent/SCRATCHPAD.template.md'));
-assert.equal(read('skills/agent-scratchpad/references/SCRATCHPAD.template.md'), read('.agent/SCRATCHPAD.template.md'));
-assert.equal(read('codex-plugin/examples/minimal/.agent/README.md'), read('.agent/README.md'));
-assert.equal(read('claude-plugin/examples/minimal/.agent/SCRATCHPAD.template.md'), read('.agent/SCRATCHPAD.template.md'));
+assert.equal(read('.agent/README.md'), read('examples/minimal/.agent/README.md'));
+assert.equal(read('.agent/SCRATCHPAD.template.md'), read('skills/agent-scratchpad/references/SCRATCHPAD.template.md'));
+assert.equal(read('examples/minimal/.agent/SCRATCHPAD.template.md'), read('skills/agent-scratchpad/references/SCRATCHPAD.template.md'));
+assert.equal(read('codex-plugin/examples/minimal/.agent/README.md'), read('examples/minimal/.agent/README.md'));
+assert.equal(
+  read('claude-plugin/examples/minimal/.agent/SCRATCHPAD.template.md'),
+  read('skills/agent-scratchpad/references/SCRATCHPAD.template.md'),
+);
 
 runCrlfSkillMetadataSyncCheck();
 runCrlfGeneratedExampleCheck();
+runScaffoldCanonicalSourceSyncCheck();
 runGeneratedPluginManifestDriftCheck();
 
 console.log('ok - packaged plugin copies are synced');
@@ -100,6 +104,45 @@ function runCrlfSkillMetadataSyncCheck() {
     assert.match(
       readFileSync(skillPath, 'utf8'),
       /metadata:\r\n  version: "0\.2\.1-dev\.1"/,
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function runScaffoldCanonicalSourceSyncCheck() {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'agent-scratchpad-sync-'));
+  const tempRepo = join(tempRoot, 'repo');
+  try {
+    cpSync(repoRoot, tempRepo, {
+      recursive: true,
+      filter: src => {
+        const parts = relative(repoRoot, src).split(/[\\/]/);
+        return !parts.includes('.git') && !parts.includes('node_modules');
+      },
+    });
+
+    const canonicalReadme = '# Canonical minimal scaffold README\n';
+    const canonicalTemplate = '# Canonical skill reference template\n';
+    writeFileSync(join(tempRepo, 'examples/minimal/.agent/README.md'), canonicalReadme, 'utf8');
+    writeFileSync(join(tempRepo, 'skills/agent-scratchpad/references/SCRATCHPAD.template.md'), canonicalTemplate, 'utf8');
+    writeFileSync(join(tempRepo, '.agent/README.md'), '# stale dogfood README\n', 'utf8');
+    writeFileSync(join(tempRepo, '.agent/SCRATCHPAD.template.md'), '# stale dogfood template\n', 'utf8');
+    writeFileSync(join(tempRepo, 'examples/minimal/.agent/SCRATCHPAD.template.md'), '# stale example template\n', 'utf8');
+
+    const sync = spawnSync(process.execPath, ['scripts/sync-packages.mjs'], {
+      cwd: tempRepo,
+      encoding: 'utf8',
+    });
+    assert.equal(sync.status, 0, `${sync.stdout}\n${sync.stderr}`);
+
+    assert.equal(readFileSync(join(tempRepo, '.agent/README.md'), 'utf8'), canonicalReadme);
+    assert.equal(readFileSync(join(tempRepo, '.agent/SCRATCHPAD.template.md'), 'utf8'), canonicalTemplate);
+    assert.equal(readFileSync(join(tempRepo, 'examples/minimal/.agent/SCRATCHPAD.template.md'), 'utf8'), canonicalTemplate);
+    assert.equal(readFileSync(join(tempRepo, 'codex-plugin/examples/minimal/.agent/README.md'), 'utf8'), canonicalReadme);
+    assert.equal(
+      readFileSync(join(tempRepo, 'claude-plugin/examples/minimal/.agent/SCRATCHPAD.template.md'), 'utf8'),
+      canonicalTemplate,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
