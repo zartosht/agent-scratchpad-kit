@@ -13,6 +13,7 @@ import {
   writeFileSync,
 } from 'fs';
 import { createHash } from 'crypto';
+import { spawnSync } from 'child_process';
 import { dirname, join, relative, resolve, sep } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -338,7 +339,7 @@ function updateGitignore(run) {
     const relPath = '.gitignore';
     const destAbs = safePath(run, relPath);
     const existing = existsSync(destAbs) ? readFileSync(destAbs, 'utf8') : null;
-    const updated = buildGitignoreContent(existing);
+    const updated = buildGitignoreContent(existing, gitignoreMatchOptions(run));
 
     if (existing === updated) {
       record(run, 'unchanged', relPath, 'required ignore rules already present');
@@ -359,7 +360,7 @@ function assertWritableDestination(destAbs) {
   accessSync(destAbs, constants.W_OK);
 }
 
-function buildGitignoreContent(existing) {
+function buildGitignoreContent(existing, options = {}) {
   if (existing === null) {
     return `# Agent Scratchpad local state\n${GITIGNORE_RULES.join('\n')}\n`;
   }
@@ -376,7 +377,7 @@ function buildGitignoreContent(existing) {
   }
 
   const missing = GITIGNORE_RULES.filter(rule => !present.has(rule));
-  const effective = gitignoreRulesAreEffective(lines);
+  const effective = gitignoreRulesAreEffective(lines, options);
   if (missing.length === 0 && effective) {
     return existing;
   }
@@ -389,17 +390,36 @@ function buildGitignoreContent(existing) {
   return existing.endsWith('\n') ? `${existing}${block}` : `${existing}\n${block}`;
 }
 
-function gitignoreRulesAreEffective(lines) {
+function gitignoreMatchOptions(run) {
+  return { ignoreCase: gitCoreIgnoreCase(run) };
+}
+
+function gitCoreIgnoreCase(run) {
+  if (!existsSync(run.targetRoot)) {
+    return false;
+  }
+  if (!existsSync(join(run.targetRoot, '.git'))) {
+    return false;
+  }
+
+  const result = spawnSync('git', ['config', '--bool', 'core.ignorecase'], {
+    cwd: run.targetRoot,
+    encoding: 'utf8',
+  });
+  return result.status === 0 && result.stdout.trim().toLowerCase() === 'true';
+}
+
+function gitignoreRulesAreEffective(lines, options = {}) {
   return [
     { path: '.agent/README.md', ignored: false },
     { path: '.agent/SCRATCHPAD.template.md', ignored: false },
     { path: '.agent/VERSION', ignored: false },
     { path: '.agent/SCRATCHPAD.local.md', ignored: true },
     { path: '.agent/backups/example.txt', ignored: true },
-  ].every(({ path, ignored }) => gitignorePathIgnoredByRelevantRules(lines, path) === ignored);
+  ].every(({ path, ignored }) => gitignorePathIgnoredByRelevantRules(lines, path, options) === ignored);
 }
 
-function gitignorePathIgnoredByRelevantRules(lines, path) {
+function gitignorePathIgnoredByRelevantRules(lines, path, options = {}) {
   const paths = [...gitignoreParentPaths(path), path];
   const ignoredByPath = new Map(paths.map(candidate => [candidate, false]));
   for (const line of lines) {
@@ -408,7 +428,7 @@ function gitignorePathIgnoredByRelevantRules(lines, path) {
       continue;
     }
     for (const candidate of paths) {
-      if (!gitignoreRuleMatchesPath(parsed.pattern, candidate)) {
+      if (!gitignoreRuleMatchesPath(parsed, candidate, options)) {
         continue;
       }
       if (parsed.negated && gitignoreHasIgnoredParent(ignoredByPath, candidate)) {
@@ -446,33 +466,55 @@ function parseGitignoreRule(line) {
   if (negated) {
     rule = rule.slice(1);
   }
-  rule = rule.replace(/^\/+/, '');
+  const anchored = rule.startsWith('/');
+  if (anchored) {
+    rule = rule.replace(/^\/+/, '');
+  }
 
-  return rule ? { negated, pattern: rule } : null;
+  return rule ? { negated, pattern: rule, anchored } : null;
 }
 
-function gitignoreRuleMatchesPath(pattern, path) {
-  if (pattern === '.agent' || pattern === '.agent/' || pattern === '.agent/**') {
+function gitignoreRuleMatchesPath(rule, path, options = {}) {
+  const pattern = typeof rule === 'string' ? rule : rule.pattern;
+  const anchored = typeof rule === 'string' ? false : rule.anchored;
+
+  if (pattern === '.agent/**') {
     return path === '.agent' || path.startsWith('.agent/');
   }
   if (pattern === '.agent/*') {
     return path.startsWith('.agent/') && path.slice('.agent/'.length).split('/').length === 1;
   }
+
   if (pattern.endsWith('/**')) {
     const prefix = pattern.slice(0, -3);
     return path === prefix.slice(0, -1) || path.startsWith(prefix);
   }
+
   if (pattern.endsWith('/')) {
-    const prefix = pattern.slice(0, -1);
-    return path === prefix || path.startsWith(`${prefix}/`);
+    return gitignoreDirectoryRuleMatchesPath(pattern, path, anchored, options);
   }
+
+  if (anchored) {
+    return gitignoreGlobMatches(pattern, path, options);
+  }
+
   if (pattern.includes('/')) {
-    return gitignoreGlobMatches(pattern, path);
+    return gitignoreGlobMatches(pattern, path, options);
   }
-  return path.split('/').some(segment => gitignoreGlobMatches(pattern, segment));
+
+  return path.split('/').some(segment => gitignoreGlobMatches(pattern, segment, options));
 }
 
-function gitignoreGlobMatches(pattern, value) {
+function gitignoreDirectoryRuleMatchesPath(pattern, path, anchored, options) {
+  const prefix = pattern.slice(0, -1);
+  if (anchored || prefix.includes('/')) {
+    return path === prefix || path.startsWith(`${prefix}/`);
+  }
+
+  return path.split('/').some(segment => gitignoreGlobMatches(prefix, segment, options));
+}
+
+function gitignoreGlobMatches(pattern, value, options = {}) {
   let source = '';
   for (let index = 0; index < pattern.length; index += 1) {
     if (pattern.startsWith('**/', index)) {
@@ -497,12 +539,12 @@ function gitignoreGlobMatches(pattern, value) {
       source += escapeRegExp(char);
     }
   }
-  const regex = new RegExp(`^${source}$`);
+  const regex = new RegExp(`^${source}$`, options.ignoreCase ? 'i' : '');
   return regex.test(value);
 }
 
 function gitignoreBracketRangeSource(pattern, start) {
-  const end = pattern.indexOf(']', start + 1);
+  const end = findGitignoreBracketEnd(pattern, start);
   if (end === -1) {
     return null;
   }
@@ -521,9 +563,56 @@ function gitignoreBracketRangeSource(pattern, start) {
   }
 
   return {
-    source: `[${negated ? '^' : ''}${escapeRegExpCharClass(content)}]`,
+    source: `[${negated ? '^' : ''}${gitignoreBracketContentSource(content)}]`,
     end,
   };
+}
+
+function findGitignoreBracketEnd(pattern, start) {
+  for (let index = start + 1; index < pattern.length; index += 1) {
+    if (pattern[index] === '[' && ['.', ':', '='].includes(pattern[index + 1])) {
+      const closing = `${pattern[index + 1]}]`;
+      const end = pattern.indexOf(closing, index + 2);
+      if (end !== -1) {
+        index = end + 1;
+        continue;
+      }
+    }
+    if (pattern[index] === ']') {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function gitignoreBracketContentSource(content) {
+  let source = '';
+  for (let index = 0; index < content.length; index += 1) {
+    if (content.startsWith('[:', index)) {
+      const end = content.indexOf(':]', index + 2);
+      if (end !== -1) {
+        source += gitignorePosixClassSource(content.slice(index + 2, end));
+        index = end + 1;
+        continue;
+      }
+    }
+    source += escapeRegExpCharClass(content[index]);
+  }
+  return source;
+}
+
+function gitignorePosixClassSource(name) {
+  const classes = {
+    alnum: 'A-Za-z0-9',
+    alpha: 'A-Za-z',
+    blank: ' \\t',
+    digit: '0-9',
+    lower: 'a-z',
+    space: '\\s',
+    upper: 'A-Z',
+    xdigit: 'A-Fa-f0-9',
+  };
+  return classes[name] ?? escapeRegExpCharClass(`[:${name}:]`);
 }
 
 function escapeRegExpCharClass(value) {
@@ -627,6 +716,13 @@ function mergeAiderConfig(existing) {
   });
 
   if (readIndexes.length === 0) {
+    if (hasTopLevelYamlFlowMapping(lines)) {
+      return {
+        status: 'skipped',
+        reason: 'skipped-ambiguous-aider-config',
+        detail: 'top-level flow-style YAML mappings are not safe to edit automatically; add CONVENTIONS.md manually',
+      };
+    }
     return {
       status: 'updated',
       content: appendAiderReadConfig(normalized),
@@ -643,7 +739,7 @@ function mergeAiderConfig(existing) {
   const readIndex = readIndexes[0];
   const readMatch = matchTopLevelAiderRead(lines[readIndex]);
   const readPrefix = readMatch[1];
-  const value = readMatch[2].trim();
+  const value = stripYamlLineComment(readMatch[2]).trim();
   if (value === '') {
     return mergeAiderBlockList(lines, readIndex);
   }
@@ -671,6 +767,39 @@ function appendAiderReadConfig(existing) {
   }
   const separator = existing.endsWith('\n') ? '' : '\n';
   return `${existing}${separator}${defaultAiderConfigContent()}`;
+}
+
+function hasTopLevelYamlFlowMapping(lines) {
+  return lines.some(line => {
+    if (/^\s/.test(line)) {
+      return false;
+    }
+    const trimmed = line.trim();
+    return trimmed.startsWith('{') && trimmed.endsWith('}') && trimmed.includes(':');
+  });
+}
+
+function stripYamlLineComment(value) {
+  let quoted = null;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (quoted) {
+      if (char === quoted) {
+        quoted = null;
+      } else if (quoted === '"' && char === '\\') {
+        index += 1;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quoted = char;
+      continue;
+    }
+    if (char === '#' && (index === 0 || /\s/.test(value[index - 1]))) {
+      return value.slice(0, index).trimEnd();
+    }
+  }
+  return value;
 }
 
 function mergeAiderBlockList(lines, readIndex) {
@@ -1227,7 +1356,7 @@ function isSemverManagedBeginLine(value) {
 }
 
 function isSemver(value) {
-  return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(value);
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value);
 }
 
 function ensureTrailingNewline(value) {

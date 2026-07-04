@@ -35,8 +35,8 @@ const failures = [];
 
 syncVersionedJson('package.json');
 syncSkillMetadata('skills/agent-scratchpad/SKILL.md');
-syncVersionedJson('codex-plugin/.codex-plugin/plugin.json');
-syncVersionedJson('claude-plugin/.claude-plugin/plugin.json');
+syncCodexPluginManifest();
+syncClaudePluginManifest();
 syncClaudeMarketplace();
 syncCodexMarketplace();
 syncVersionFiles();
@@ -114,6 +114,71 @@ function syncSkillMetadata(relPath) {
     return;
   }
   writeIfChanged(relPath, next);
+}
+
+function syncCodexPluginManifest() {
+  writeJson('codex-plugin/.codex-plugin/plugin.json', {
+    name: 'agent-scratchpad',
+    version,
+    description: 'Durable scratchpad workflow for long-running coding-agent tasks.',
+    author: {
+      name: 'Zartosht',
+    },
+    homepage: 'https://github.com/zartosht/agent-scratchpad-kit',
+    repository: 'https://github.com/zartosht/agent-scratchpad-kit',
+    license: 'MIT',
+    keywords: [
+      'scratchpad',
+      'agent-skills',
+      'codex',
+      'coding-agents',
+      'handoff',
+      'context-management',
+    ],
+    skills: './skills/',
+    interface: {
+      displayName: 'Agent Scratchpad',
+      shortDescription: 'Durable working memory for coding agents.',
+      longDescription: 'Maintains a repo-local scratchpad for long-running coding tasks, debugging sessions, refactors, migrations, context compaction, and handoffs.',
+      developerName: 'Zartosht',
+      category: 'Productivity',
+      capabilities: [
+        'Read',
+        'Write',
+      ],
+      websiteURL: 'https://github.com/zartosht/agent-scratchpad-kit',
+      defaultPrompt: [
+        'Install the Agent Scratchpad workflow in this repository.',
+        'Use Agent Scratchpad while working on this refactor.',
+        'Read the scratchpad, continue the task, and update handoff notes.',
+      ],
+    },
+  });
+}
+
+function syncClaudePluginManifest() {
+  writeJson('claude-plugin/.claude-plugin/plugin.json', {
+    name: 'agent-scratchpad',
+    displayName: 'Agent Scratchpad',
+    version,
+    description: 'Durable scratchpad workflow for long-running coding-agent tasks.',
+    author: {
+      name: 'Zartosht',
+      url: 'https://github.com/zartosht',
+    },
+    homepage: 'https://github.com/zartosht/agent-scratchpad-kit',
+    repository: 'https://github.com/zartosht/agent-scratchpad-kit',
+    license: 'MIT',
+    keywords: [
+      'scratchpad',
+      'agent-skills',
+      'claude-code',
+      'coding-agents',
+      'handoff',
+      'context-management',
+    ],
+    skills: './skills/',
+  });
 }
 
 function syncClaudeMarketplace() {

@@ -28,6 +28,7 @@ assert.equal(read('claude-plugin/examples/minimal/.agent/SCRATCHPAD.template.md'
 
 runCrlfSkillMetadataSyncCheck();
 runCrlfGeneratedExampleCheck();
+runGeneratedPluginManifestDriftCheck();
 
 console.log('ok - packaged plugin copies are synced');
 
@@ -100,6 +101,40 @@ function runCrlfSkillMetadataSyncCheck() {
       readFileSync(skillPath, 'utf8'),
       /metadata:\r\n  version: "0\.2\.1-dev\.1"/,
     );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function runGeneratedPluginManifestDriftCheck() {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'agent-scratchpad-sync-'));
+  const tempRepo = join(tempRoot, 'repo');
+  try {
+    cpSync(repoRoot, tempRepo, {
+      recursive: true,
+      filter: src => {
+        const parts = relative(repoRoot, src).split(/[\\/]/);
+        return !parts.includes('.git') && !parts.includes('node_modules');
+      },
+    });
+
+    const codexManifestPath = join(tempRepo, 'codex-plugin/.codex-plugin/plugin.json');
+    const codexManifest = JSON.parse(readFileSync(codexManifestPath, 'utf8'));
+    codexManifest.description = 'drifted generated description';
+    writeFileSync(codexManifestPath, `${JSON.stringify(codexManifest, null, 2)}\n`, 'utf8');
+
+    const claudeManifestPath = join(tempRepo, 'claude-plugin/.claude-plugin/plugin.json');
+    const claudeManifest = JSON.parse(readFileSync(claudeManifestPath, 'utf8'));
+    claudeManifest.keywords = [...claudeManifest.keywords, 'drifted-keyword'];
+    writeFileSync(claudeManifestPath, `${JSON.stringify(claudeManifest, null, 2)}\n`, 'utf8');
+
+    const check = spawnSync(process.execPath, ['scripts/sync-packages.mjs', '--check'], {
+      cwd: tempRepo,
+      encoding: 'utf8',
+    });
+    assert.notEqual(check.status, 0, `${check.stdout}\n${check.stderr}`);
+    assert.match(check.stdout, /codex-plugin\/\.codex-plugin\/plugin\.json: content drift/);
+    assert.match(check.stdout, /claude-plugin\/\.claude-plugin\/plugin\.json: content drift/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

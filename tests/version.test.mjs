@@ -6,11 +6,12 @@ import { fileURLToPath } from 'url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const version = read('VERSION').trim();
-const SEMVER_RE = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
+const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 assert.match(version, SEMVER_RE);
 assert.match('0.2.0-dev.1', SEMVER_RE);
 assert.match('0.2.0+build.1', SEMVER_RE);
+assert.match('0.2.0-dev.1+build.1', SEMVER_RE);
 assert.equal(json('package.json').version, version);
 assert.equal(json('codex-plugin/.codex-plugin/plugin.json').version, version);
 assert.equal(json('claude-plugin/.claude-plugin/plugin.json').version, version);

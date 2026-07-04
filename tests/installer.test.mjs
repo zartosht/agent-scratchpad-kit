@@ -119,6 +119,10 @@ runTest('Aider config merges safe existing read settings and backs them up', () 
       expected: /^read: \[EXISTING\.md, CONVENTIONS\.md\]$/m,
     },
     {
+      before: 'read: EXISTING.md # scratchpad files\n',
+      expected: /^read: \[EXISTING\.md, CONVENTIONS\.md\]$/m,
+    },
+    {
       before: 'read: [EXISTING.md]\n',
       expected: /^read: \[EXISTING\.md, CONVENTIONS\.md\]$/m,
     },
@@ -128,6 +132,10 @@ runTest('Aider config merges safe existing read settings and backs them up', () 
     },
     {
       before: 'read:\n  - EXISTING.md\n',
+      expected: /^  - CONVENTIONS\.md$/m,
+    },
+    {
+      before: 'read: # scratchpad files\n  - EXISTING.md\n',
       expected: /^  - CONVENTIONS\.md$/m,
     },
     {
@@ -149,9 +157,31 @@ runTest('Aider config merges safe existing read settings and backs them up', () 
   }
 });
 
+runTest('Aider read comments are ignored when checking existing target', () => {
+  const target = tempDir();
+  const before = 'read: CONVENTIONS.md # already loaded\n';
+  writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
+
+  const result = runInstaller([target, '--agent', 'aider']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(read(join(target, '.aider.conf.yml')), before);
+  assert.equal(existsSync(join(target, '.agent/backups')), false);
+});
+
 runTest('ambiguous Aider read config requires manual action', () => {
   const target = tempDir();
   const before = 'read: "./existing file.md"\n';
+  writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
+
+  const result = runInstaller([target, '--agent', 'aider']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout, /skipped-ambiguous-aider-config/);
+  assert.equal(read(join(target, '.aider.conf.yml')), before);
+});
+
+runTest('flow-style Aider mappings require manual action', () => {
+  const target = tempDir();
+  const before = '{model: gpt-4, read: EXISTING.md}\n';
   writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
 
   const result = runInstaller([target, '--agent', 'aider']);
@@ -410,23 +440,25 @@ runTest('managed block metadata edits require --force-managed-block', () => {
 });
 
 runTest('version-only managed block upgrades are treated as pristine', () => {
-  const target = tempDir();
-  assert.equal(runInstaller([target, '--agent', 'codex']).status, 0);
+  for (const oldVersion of ['0.1.0', '0.1.0-rc.1+build.5']) {
+    const target = tempDir();
+    assert.equal(runInstaller([target, '--agent', 'codex']).status, 0);
 
-  const file = join(target, 'AGENTS.md');
-  writeFileSync(
-    file,
-    read(file).replace(
-      new RegExp(`BEGIN Agent Scratchpad Kit v${escapeRegExp(version)}`),
-      'BEGIN Agent Scratchpad Kit v0.1.0',
-    ),
-    'utf8',
-  );
+    const file = join(target, 'AGENTS.md');
+    writeFileSync(
+      file,
+      read(file).replace(
+        new RegExp(`BEGIN Agent Scratchpad Kit v${escapeRegExp(version)}`),
+        `BEGIN Agent Scratchpad Kit v${oldVersion}`,
+      ),
+      'utf8',
+    );
 
-  const result = runInstaller([target, '--agent', 'codex']);
-  assert.equal(result.status, 0, result.stderr);
-  assert.doesNotMatch(result.stdout, /skipped-user-edited-managed-block/);
-  assert.match(read(file), new RegExp(`BEGIN Agent Scratchpad Kit v${escapeRegExp(version)}`));
+    const result = runInstaller([target, '--agent', 'codex']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /skipped-user-edited-managed-block/);
+    assert.match(read(file), new RegExp(`BEGIN Agent Scratchpad Kit v${escapeRegExp(version)}`));
+  }
 });
 
 runTest('CRLF-normalized managed blocks remain pristine', () => {
@@ -513,7 +545,7 @@ runTest('later broad .agent ignore is corrected even when rules already exist', 
 });
 
 runTest('later wildcard ignores are corrected even when scratchpad rules already exist', () => {
-  for (const wildcardRule of ['*.md', '*', '.agent/**/*.md', '.agent/[A-Z]*.md']) {
+  for (const wildcardRule of ['*.md', '*', '.agent/**/*.md', '.agent/[A-Z]*.md', '.agent/[[:upper:]]*.md']) {
     const target = tempDir();
     writeFileSync(
       join(target, '.gitignore'),
@@ -541,6 +573,96 @@ runTest('later wildcard ignores are corrected even when scratchpad rules already
     assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true, wildcardRule);
     assert.equal(isIgnored(target, '.agent/backups/example.txt'), true, wildcardRule);
   }
+});
+
+runTest('root-anchored gitignore negations do not mask ignored scaffold files', () => {
+  const target = tempDir();
+  writeFileSync(
+    join(target, '.gitignore'),
+    [
+      '# Agent Scratchpad local state',
+      '!.agent/',
+      '!.agent/README.md',
+      '!.agent/SCRATCHPAD.template.md',
+      '!.agent/VERSION',
+      '.agent/SCRATCHPAD.local.md',
+      '.agent/backups/',
+      '*.md',
+      '!/README.md',
+      '!/SCRATCHPAD.template.md',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' });
+
+  const result = runInstaller([target, '--no-adapters']);
+  assert.equal(result.status, 0, result.stderr);
+
+  assert.equal(isIgnored(target, '.agent/README.md'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.template.md'), false);
+  assert.equal(isIgnored(target, '.agent/VERSION'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true);
+  assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
+});
+
+runTest('directory-only basename gitignore rules are checked at any depth', () => {
+  const target = tempDir();
+  writeFileSync(
+    join(target, '.gitignore'),
+    [
+      '# Agent Scratchpad local state',
+      '!.agent/',
+      '!.agent/README.md',
+      '!.agent/SCRATCHPAD.template.md',
+      '!.agent/VERSION',
+      '.agent/SCRATCHPAD.local.md',
+      '.agent/backups/',
+      '!backups/',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' });
+
+  const result = runInstaller([target, '--no-adapters']);
+  assert.equal(result.status, 0, result.stderr);
+
+  assert.equal(isIgnored(target, '.agent/README.md'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.template.md'), false);
+  assert.equal(isIgnored(target, '.agent/VERSION'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true);
+  assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
+});
+
+runTest('core.ignoreCase is honored for gitignore effectiveness checks', () => {
+  const target = tempDir();
+  writeFileSync(
+    join(target, '.gitignore'),
+    [
+      '# Agent Scratchpad local state',
+      '!.agent/',
+      '!.agent/README.md',
+      '!.agent/SCRATCHPAD.template.md',
+      '!.agent/VERSION',
+      '.agent/SCRATCHPAD.local.md',
+      '.agent/backups/',
+      '.agent/readme.md',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  assert.equal(spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' }).status, 0);
+  assert.equal(spawnSync('git', ['config', 'core.ignorecase', 'true'], { cwd: target, encoding: 'utf8' }).status, 0);
+
+  const result = runInstaller([target, '--no-adapters']);
+  assert.equal(result.status, 0, result.stderr);
+
+  assert.equal(isIgnored(target, '.agent/README.md'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.template.md'), false);
+  assert.equal(isIgnored(target, '.agent/VERSION'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true);
+  assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
 });
 
 runTest('ignored parent directories are corrected before tracked scaffold reincludes', () => {
