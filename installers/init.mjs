@@ -82,11 +82,13 @@ const GITIGNORE_RULES = [
   '.agent/backups/',
 ];
 
-const LEGACY_NEEDLES = [
-  'Agent Scratchpad',
-  'SCRATCHPAD.local.md',
+const LEGACY_SCRATCHPAD_PATHS = [
+  '.agent/SCRATCHPAD.local.md',
   '.agent/SCRATCHPAD.template.md',
 ];
+const LEGACY_SKILL_SOURCE_MARKER = '> Skill source: [Agent Scratchpad Kit](https://github.com/zartosht/agent-scratchpad-kit)';
+const LEGACY_ADAPTER_HEADING_RE = /^(?:# Agent Scratchpad|## Scratchpad convention|## Agent Scratchpad workflow)$/m;
+const LEGACY_ADAPTER_INTRO = 'This repository uses the **Agent Scratchpad** workflow';
 
 const LEGACY_ADAPTER_SHA256 = {
   'adapters/AGENTS.md': '06254c203c280288faa2e79772dee6ff84c0b40bb6ef44d83597e15418db59f8',
@@ -801,7 +803,14 @@ function extractPayloadFromBlock(rawBlock) {
 }
 
 function hasLegacyScratchpadSection(content) {
-  return LEGACY_NEEDLES.some(needle => content.includes(needle));
+  const normalized = normalizeLineEndings(content);
+  const hasScratchpadPaths = LEGACY_SCRATCHPAD_PATHS.every(needle => normalized.includes(needle));
+  if (!hasScratchpadPaths) {
+    return false;
+  }
+
+  return normalized.includes(LEGACY_SKILL_SOURCE_MARKER)
+    || (LEGACY_ADAPTER_HEADING_RE.test(normalized) && normalized.includes(LEGACY_ADAPTER_INTRO));
 }
 
 function isKnownLegacyAdapter(adapter, existing, sourceRaw, sourceBody) {

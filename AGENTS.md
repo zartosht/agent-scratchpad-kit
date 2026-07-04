@@ -39,6 +39,16 @@ Use `.agent/SCRATCHPAD.local.md` for live task notes, but never commit it.
 - `--repair` must not erase user-edited managed blocks. Replacing those requires `--force-managed-block`.
 - Backups belong under `.agent/backups/`, never beside the modified file.
 
+## Review Discipline
+
+When reviewing installer, sync, packaging, or adapter changes, do not stop at happy paths. Include adversarial checks for valid existing repository states that should keep working:
+
+- Existing instruction files with project-specific prose that merely mentions Agent Scratchpad terms must still allow safe managed-block append unless they are known generated legacy adapter text.
+- Tests that inspect Markdown, YAML, or generated metadata must tolerate CRLF line endings when the behavior should be platform-independent.
+- Existing config files must be tested in absent, already-correct, simple-merge, and ambiguous/manual-action forms.
+- Generated copies must be checked from canonical source, but generated-copy drift passing is not evidence that canonical behavior is correct.
+- For every broad substring, regex, or heuristic, add at least one harmless false-positive fixture and one real-positive fixture.
+
 ## Validation
 
 Before release or handoff, run:

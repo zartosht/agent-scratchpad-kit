@@ -27,7 +27,10 @@ for (const relPath of [
   'codex-plugin/skills/agent-scratchpad/SKILL.md',
   'claude-plugin/skills/agent-scratchpad/SKILL.md',
 ]) {
-  assert.match(read(relPath), new RegExp(`metadata:\\n  version: "${escapeRegExp(version)}"`));
+  const metadataVersionRe = new RegExp(`metadata:\\r?\\n  version: "${escapeRegExp(version)}"`);
+  const content = read(relPath);
+  assert.match(content, metadataVersionRe, relPath);
+  assert.match(toCrLf(content), metadataVersionRe, `${relPath} with CRLF line endings`);
 }
 
 for (const relPath of [
@@ -114,4 +117,8 @@ function findPluginByName(plugins, name) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function toCrLf(value) {
+  return value.replace(/\r?\n/g, '\r\n');
 }

@@ -186,6 +186,28 @@ runTest('existing instruction files are preserved outside managed blocks and bac
   assert.equal(read(backup), 'Project-specific rules\n');
 });
 
+runTest('project-specific scratchpad mentions are not treated as legacy adapters', () => {
+  const target = tempDir();
+  const existing = [
+    '# Agent Instructions',
+    '',
+    'This repo is comparing Agent Scratchpad adoption options.',
+    'Review `.agent/SCRATCHPAD.template.md` before creating examples.',
+    'Do not commit `.agent/SCRATCHPAD.local.md` from local experiments.',
+    '',
+  ].join('\n');
+  writeFileSync(join(target, 'AGENTS.md'), existing, 'utf8');
+
+  const result = runInstaller([target, '--agent', 'codex']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /skipped-legacy-section/);
+
+  const content = read(join(target, 'AGENTS.md'));
+  assert.equal(content.startsWith(existing), true);
+  assert.match(content, /BEGIN Agent Scratchpad Kit v/);
+  assert.equal(read(findBackup(target, 'AGENTS.md')), existing);
+});
+
 runTest('legacy unmarked scratchpad text is skipped unless repair can prove it is generated', () => {
   const target = tempDir();
   const legacy = legacyCodexAdapter;
