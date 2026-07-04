@@ -145,8 +145,8 @@ function main() {
 
   if (!run.options.noAdapters) {
     for (const adapter of run.selectedAdapters) {
-      installAdapter(run, adapter);
-      if (adapter.aiderConfig) {
+      const adapterInstalled = installAdapter(run, adapter);
+      if (adapter.aiderConfig && adapterInstalled) {
         installAiderConfig(run);
       }
     }
@@ -347,7 +347,7 @@ function updateGitignore(run) {
       return;
     }
 
-    if (existing !== null) {
+    if (existing !== null && !run.options.dryRun) {
       assertWritableDestination(destAbs);
     }
 
@@ -460,8 +460,7 @@ function installAdapter(run, adapter) {
 
     if (!existsSync(destAbs)) {
       const desired = adapter.cursorMdc ? `${sourceParts.frontmatter}${block}` : block;
-      writeDesiredFile(run, relPath, desired, `${adapter.name} adapter`);
-      return;
+      return writeDesiredFile(run, relPath, desired, `${adapter.name} adapter`);
     }
 
     const existing = readFileSync(destAbs, 'utf8');
@@ -477,17 +476,18 @@ function installAdapter(run, adapter) {
 
     if (merge.status === 'unchanged') {
       record(run, 'unchanged', relPath, `${adapter.label} adapter already current`);
-      return;
+      return true;
     }
 
     if (merge.status === 'skipped') {
       manualAction(run, relPath, merge.reason, merge.detail);
-      return;
+      return false;
     }
 
-    writeDesiredFile(run, relPath, merge.content, `${adapter.name} adapter`);
+    return writeDesiredFile(run, relPath, merge.content, `${adapter.name} adapter`);
   } catch (error) {
     fail(run, relPath, error);
+    return false;
   }
 }
 
@@ -904,31 +904,33 @@ function writeDesiredFile(run, relPath, desired, detail) {
       const current = readFileSync(destAbs, 'utf8');
       if (current === desired) {
         record(run, 'unchanged', relPath, detail);
-        return;
+        return true;
       }
 
       backupExistingFile(run, relPath, destAbs);
       if (run.options.dryRun) {
         record(run, 'would-update', relPath, detail);
-        return;
+        return true;
       }
 
       ensureParentDirectory(run, destAbs);
       writeFileSync(destAbs, desired, 'utf8');
       record(run, 'updated', relPath, detail);
-      return;
+      return true;
     }
 
     if (run.options.dryRun) {
       record(run, 'would-create', relPath, detail);
-      return;
+      return true;
     }
 
     ensureParentDirectory(run, destAbs);
     writeFileSync(destAbs, desired, 'utf8');
     record(run, 'created', relPath, detail);
+    return true;
   } catch (error) {
     fail(run, relPath, error);
+    return false;
   }
 }
 

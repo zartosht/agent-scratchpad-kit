@@ -147,6 +147,33 @@ runTest('ambiguous Aider read config requires manual action', () => {
   assert.equal(read(join(target, '.aider.conf.yml')), before);
 });
 
+runTest('Aider config is skipped when the Aider adapter fails to install', () => {
+  const target = tempDir();
+  mkdirSync(join(target, 'CONVENTIONS.md'));
+
+  const result = runInstaller([target, '--agent', 'aider']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout, /failed: CONVENTIONS\.md/);
+  assert.equal(existsSync(join(target, '.aider.conf.yml')), false);
+});
+
+runTest('Aider config is skipped when the Aider adapter requires manual action', () => {
+  const target = tempDir();
+  const ambiguousLegacy = [
+    '## Agent Scratchpad workflow',
+    '',
+    'This repository uses the **Agent Scratchpad** workflow, but this copy has local edits.',
+    'See `.agent/SCRATCHPAD.template.md` and `.agent/SCRATCHPAD.local.md`.',
+    '',
+  ].join('\n');
+  writeFileSync(join(target, 'CONVENTIONS.md'), ambiguousLegacy, 'utf8');
+
+  const result = runInstaller([target, '--agent', 'aider']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout, /manual-action-required: CONVENTIONS\.md/);
+  assert.equal(existsSync(join(target, '.aider.conf.yml')), false);
+});
+
 runTest('invalid agent selections fail before writing', () => {
   for (const { value, message } of [
     { value: 'codex,nope', message: /Unknown agent name/ },
@@ -169,6 +196,25 @@ runTest('--dry-run writes nothing', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(target), false);
   assert.match(result.stdout, /would-create: \./);
+});
+
+runTest('--dry-run previews .gitignore updates without requiring write permission', () => {
+  if (process.platform === 'win32') {
+    return;
+  }
+
+  const target = tempDir();
+  const gitignore = join(target, '.gitignore');
+  writeFileSync(gitignore, '# existing\n', 'utf8');
+  chmodSync(gitignore, 0o400);
+
+  const result = runInstaller([target, '--no-adapters', '--dry-run']);
+  chmodSync(gitignore, 0o600);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /would-update: \.gitignore/);
+  assert.equal(read(gitignore), '# existing\n');
+  assert.equal(existsSync(join(target, '.agent/backups')), false);
 });
 
 runTest('existing instruction files are preserved outside managed blocks and backed up', () => {
@@ -442,7 +488,7 @@ runTest('later broad .agent ignore is corrected even when rules already exist', 
 });
 
 runTest('unwritable .gitignore does not create backups before failing', () => {
-  if (process.platform === 'win32') {
+  if (process.platform === 'win32' || isRoot()) {
     return;
   }
 
@@ -543,4 +589,8 @@ function isIgnored(target, relPath) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isRoot() {
+  return typeof process.getuid === 'function' && process.getuid() === 0;
 }
