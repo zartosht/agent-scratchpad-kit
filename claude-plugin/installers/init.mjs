@@ -83,6 +83,30 @@ const GITIGNORE_RULES = [
   '.agent/backups/',
 ];
 
+const ROOT_GITIGNORE_EXPECTATIONS = [
+  { path: '.agent/README.md', ignored: false },
+  { path: '.agent/SCRATCHPAD.template.md', ignored: false },
+  { path: '.agent/VERSION', ignored: false },
+  { path: '.agent/SCRATCHPAD.local.md', ignored: true },
+  { path: '.agent/backups/example.txt', ignored: true },
+];
+
+const NESTED_AGENT_GITIGNORE_RULES = [
+  '!README.md',
+  '!SCRATCHPAD.template.md',
+  '!VERSION',
+  'SCRATCHPAD.local.md',
+  'backups/',
+];
+
+const NESTED_AGENT_GITIGNORE_EXPECTATIONS = [
+  { path: 'README.md', ignored: false },
+  { path: 'SCRATCHPAD.template.md', ignored: false },
+  { path: 'VERSION', ignored: false },
+  { path: 'SCRATCHPAD.local.md', ignored: true },
+  { path: 'backups/example.txt', ignored: true },
+];
+
 const LEGACY_SCRATCHPAD_PATHS = [
   '.agent/SCRATCHPAD.local.md',
   '.agent/SCRATCHPAD.template.md',
@@ -343,6 +367,7 @@ function updateGitignore(run) {
 
     if (existing === updated) {
       record(run, 'unchanged', relPath, 'required ignore rules already present');
+      updateNestedAgentGitignore(run);
       return;
     }
 
@@ -350,9 +375,45 @@ function updateGitignore(run) {
       assertWritableDestination(destAbs);
     }
 
-    writeDesiredFile(run, relPath, updated, 'gitignore');
+    if (writeDesiredFile(run, relPath, updated, 'gitignore')) {
+      updateNestedAgentGitignore(run);
+    }
   } catch (error) {
     fail(run, '.gitignore', error);
+  }
+}
+
+function updateNestedAgentGitignore(run) {
+  const relPath = '.agent/.gitignore';
+  try {
+    const destAbs = safePath(run, relPath);
+    if (!existsSync(destAbs)) {
+      return;
+    }
+
+    const stat = lstatSync(destAbs);
+    if (!stat.isFile()) {
+      throw new Error('target exists but is not a regular file');
+    }
+
+    const existing = readFileSync(destAbs, 'utf8');
+    const updated = buildGitignoreContent(
+      existing,
+      gitignoreMatchOptions(run),
+      NESTED_AGENT_GITIGNORE_RULES,
+      NESTED_AGENT_GITIGNORE_EXPECTATIONS,
+    );
+    if (existing === updated) {
+      record(run, 'unchanged', relPath, 'nested ignore rules already preserve scratchpad files');
+      return;
+    }
+
+    if (existing !== null && !run.options.dryRun) {
+      assertWritableDestination(destAbs);
+    }
+    writeDesiredFile(run, relPath, updated, 'nested gitignore');
+  } catch (error) {
+    fail(run, relPath, error);
   }
 }
 
@@ -360,29 +421,34 @@ function assertWritableDestination(destAbs) {
   accessSync(destAbs, constants.W_OK);
 }
 
-function buildGitignoreContent(existing, options = {}) {
+function buildGitignoreContent(
+  existing,
+  options = {},
+  requiredRules = GITIGNORE_RULES,
+  expectations = ROOT_GITIGNORE_EXPECTATIONS,
+) {
   if (existing === null) {
-    return `# Agent Scratchpad local state\n${GITIGNORE_RULES.join('\n')}\n`;
+    return `# Agent Scratchpad local state\n${requiredRules.join('\n')}\n`;
   }
 
   const lines = existing.split(/\r?\n/);
   const present = new Set();
   for (const line of lines) {
     const rule = line.split('#')[0].trim();
-    for (const required of GITIGNORE_RULES) {
+    for (const required of requiredRules) {
       if (rule === required || rule === `/${required}`) {
         present.add(required);
       }
     }
   }
 
-  const missing = GITIGNORE_RULES.filter(rule => !present.has(rule));
-  const effective = gitignoreRulesAreEffective(lines, options);
+  const missing = requiredRules.filter(rule => !present.has(rule));
+  const effective = gitignoreRulesAreEffective(lines, expectations, options);
   if (missing.length === 0 && effective) {
     return existing;
   }
 
-  const rules = effective ? missing : GITIGNORE_RULES;
+  const rules = effective ? missing : requiredRules;
   const block = `# Agent Scratchpad local state\n${rules.join('\n')}\n`;
   if (existing.length === 0) {
     return block;
@@ -409,14 +475,8 @@ function gitCoreIgnoreCase(run) {
   return result.status === 0 && result.stdout.trim().toLowerCase() === 'true';
 }
 
-function gitignoreRulesAreEffective(lines, options = {}) {
-  return [
-    { path: '.agent/README.md', ignored: false },
-    { path: '.agent/SCRATCHPAD.template.md', ignored: false },
-    { path: '.agent/VERSION', ignored: false },
-    { path: '.agent/SCRATCHPAD.local.md', ignored: true },
-    { path: '.agent/backups/example.txt', ignored: true },
-  ].every(({ path, ignored }) => gitignorePathIgnoredByRelevantRules(lines, path, options) === ignored);
+function gitignoreRulesAreEffective(lines, expectations, options = {}) {
+  return expectations.every(({ path, ignored }) => gitignorePathIgnoredByRelevantRules(lines, path, options) === ignored);
 }
 
 function gitignorePathIgnoredByRelevantRules(lines, path, options = {}) {
@@ -523,7 +583,10 @@ function gitignoreGlobMatches(pattern, value, options = {}) {
       continue;
     }
     const char = pattern[index];
-    if (char === '*') {
+    if (char === '\\' && index + 1 < pattern.length) {
+      source += escapeRegExp(pattern[index + 1]);
+      index += 1;
+    } else if (char === '*') {
       source += '[^/]*';
     } else if (char === '?') {
       source += '[^/]';
@@ -716,6 +779,13 @@ function mergeAiderConfig(existing) {
   });
 
   if (readIndexes.length === 0) {
+    if (hasIndentedAiderRead(lines)) {
+      return {
+        status: 'skipped',
+        reason: 'skipped-ambiguous-aider-config',
+        detail: 'indented read entries are not safe to edit automatically; add CONVENTIONS.md manually',
+      };
+    }
     if (hasTopLevelYamlFlowMapping(lines)) {
       return {
         status: 'skipped',
@@ -774,9 +844,13 @@ function hasTopLevelYamlFlowMapping(lines) {
     if (/^\s/.test(line)) {
       return false;
     }
-    const trimmed = line.trim();
-    return trimmed.startsWith('{') && trimmed.endsWith('}') && trimmed.includes(':');
+    const trimmed = stripYamlLineComment(line).trim();
+    return trimmed.startsWith('{');
   });
+}
+
+function hasIndentedAiderRead(lines) {
+  return lines.some(line => /^\s+(?:read|"read"|'read')\s*:/.test(line));
 }
 
 function stripYamlLineComment(value) {

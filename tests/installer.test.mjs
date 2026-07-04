@@ -180,8 +180,24 @@ runTest('ambiguous Aider read config requires manual action', () => {
 });
 
 runTest('flow-style Aider mappings require manual action', () => {
+  for (const before of [
+    '{model: gpt-4, read: EXISTING.md}\n',
+    '{model: gpt-4, read: EXISTING.md} # existing\n',
+    '{\n  model: gpt-4,\n  read: EXISTING.md\n}\n',
+  ]) {
+    const target = tempDir();
+    writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
+
+    const result = runInstaller([target, '--agent', 'aider']);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stdout, /skipped-ambiguous-aider-config/);
+    assert.equal(read(join(target, '.aider.conf.yml')), before);
+  }
+});
+
+runTest('indented Aider read config requires manual action', () => {
   const target = tempDir();
-  const before = '{model: gpt-4, read: EXISTING.md}\n';
+  const before = '  read: EXISTING.md\n';
   writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
 
   const result = runInstaller([target, '--agent', 'aider']);
@@ -545,7 +561,14 @@ runTest('later broad .agent ignore is corrected even when rules already exist', 
 });
 
 runTest('later wildcard ignores are corrected even when scratchpad rules already exist', () => {
-  for (const wildcardRule of ['*.md', '*', '.agent/**/*.md', '.agent/[A-Z]*.md', '.agent/[[:upper:]]*.md']) {
+  for (const wildcardRule of [
+    '*.md',
+    '*',
+    '.agent/**/*.md',
+    '.agent/[A-Z]*.md',
+    '.agent/[[:upper:]]*.md',
+    '.agent/README\\.md',
+  ]) {
     const target = tempDir();
     writeFileSync(
       join(target, '.gitignore'),
@@ -573,6 +596,40 @@ runTest('later wildcard ignores are corrected even when scratchpad rules already
     assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true, wildcardRule);
     assert.equal(isIgnored(target, '.agent/backups/example.txt'), true, wildcardRule);
   }
+});
+
+runTest('nested .agent gitignore rules are corrected when they hide scaffold files', () => {
+  const target = tempDir();
+  mkdirSync(join(target, '.agent'));
+  writeFileSync(
+    join(target, '.gitignore'),
+    [
+      '# Agent Scratchpad local state',
+      '!.agent/',
+      '!.agent/README.md',
+      '!.agent/SCRATCHPAD.template.md',
+      '!.agent/VERSION',
+      '.agent/SCRATCHPAD.local.md',
+      '.agent/backups/',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  writeFileSync(join(target, '.agent/.gitignore'), '*.md\n!backups/\n', 'utf8');
+  spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' });
+
+  const result = runInstaller([target, '--no-adapters']);
+  assert.equal(result.status, 0, result.stderr);
+
+  const nested = read(join(target, '.agent/.gitignore'));
+  assert.match(nested, /^!README\.md$/m);
+  assert.match(nested, /^!SCRATCHPAD\.template\.md$/m);
+  assert.match(nested, /^backups\/$/m);
+  assert.equal(isIgnored(target, '.agent/README.md'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.template.md'), false);
+  assert.equal(isIgnored(target, '.agent/VERSION'), false);
+  assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true);
+  assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
 });
 
 runTest('root-anchored gitignore negations do not mask ignored scaffold files', () => {
