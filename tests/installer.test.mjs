@@ -125,6 +125,14 @@ runTest('Aider config merges safe existing read settings and backs them up', () 
       before: 'read:\n  - EXISTING.md\n',
       expected: /^  - CONVENTIONS\.md$/m,
     },
+    {
+      before: 'read:\n- EXISTING.md\n',
+      expected: /^- CONVENTIONS\.md$/m,
+    },
+    {
+      before: 'read:\n    - EXISTING.md\n',
+      expected: /^    - CONVENTIONS\.md$/m,
+    },
   ]) {
     const target = tempDir();
     writeFileSync(join(target, '.aider.conf.yml'), before, 'utf8');
@@ -485,6 +493,37 @@ runTest('later broad .agent ignore is corrected even when rules already exist', 
   assert.equal(isIgnored(target, '.agent/VERSION'), false);
   assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true);
   assert.equal(isIgnored(target, '.agent/backups/example.txt'), true);
+});
+
+runTest('later wildcard ignores are corrected even when scratchpad rules already exist', () => {
+  for (const wildcardRule of ['*.md', '*']) {
+    const target = tempDir();
+    writeFileSync(
+      join(target, '.gitignore'),
+      [
+        '# Agent Scratchpad local state',
+        '!.agent/',
+        '!.agent/README.md',
+        '!.agent/SCRATCHPAD.template.md',
+        '!.agent/VERSION',
+        '.agent/SCRATCHPAD.local.md',
+        '.agent/backups/',
+        wildcardRule,
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    spawnSync('git', ['init'], { cwd: target, encoding: 'utf8' });
+
+    const result = runInstaller([target, '--no-adapters']);
+    assert.equal(result.status, 0, result.stderr);
+
+    assert.equal(isIgnored(target, '.agent/README.md'), false, wildcardRule);
+    assert.equal(isIgnored(target, '.agent/SCRATCHPAD.template.md'), false, wildcardRule);
+    assert.equal(isIgnored(target, '.agent/VERSION'), false, wildcardRule);
+    assert.equal(isIgnored(target, '.agent/SCRATCHPAD.local.md'), true, wildcardRule);
+    assert.equal(isIgnored(target, '.agent/backups/example.txt'), true, wildcardRule);
+  }
 });
 
 runTest('unwritable .gitignore does not create backups before failing', () => {

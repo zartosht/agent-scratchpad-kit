@@ -443,7 +443,18 @@ function gitignoreRuleMatchesPath(pattern, path) {
     const prefix = pattern.slice(0, -1);
     return path === prefix || path.startsWith(`${prefix}/`);
   }
-  return pattern === path;
+  if (pattern.includes('/')) {
+    return gitignoreGlobMatches(pattern, path);
+  }
+  return path.split('/').some(segment => gitignoreGlobMatches(pattern, segment));
+}
+
+function gitignoreGlobMatches(pattern, value) {
+  const regex = new RegExp(`^${pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')}$`);
+  return regex.test(value);
 }
 
 function installAdapter(run, adapter) {
@@ -602,11 +613,26 @@ function mergeAiderBlockList(lines, readIndex) {
     };
   }
 
+  const listIndents = new Set(
+    blockLines
+      .map(line => line.match(/^(\s*)-\s+/))
+      .filter(Boolean)
+      .map(match => match[1]),
+  );
+  if (listIndents.size > 1) {
+    return {
+      status: 'skipped',
+      reason: 'skipped-ambiguous-aider-config',
+      detail: 'existing read list uses mixed indentation; add CONVENTIONS.md manually',
+    };
+  }
+  const listIndent = listIndents.size === 1 ? [...listIndents][0] : '  ';
+
   let insertAt = end;
   while (insertAt > readIndex + 1 && lines[insertAt - 1].trim() === '') {
     insertAt -= 1;
   }
-  lines.splice(insertAt, 0, `  - ${AIDER_READ_TARGET}`);
+  lines.splice(insertAt, 0, `${listIndent}- ${AIDER_READ_TARGET}`);
   return { status: 'updated', content: ensureTrailingNewline(lines.join('\n')) };
 }
 
@@ -635,7 +661,8 @@ function findYamlBlockEnd(lines, start) {
   let index = start + 1;
   while (index < lines.length) {
     const line = lines[index];
-    if (line.trim() === '' || line.trim().startsWith('#') || /^\s/.test(line)) {
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#') || /^\s/.test(line) || trimmed.startsWith('- ')) {
       index += 1;
       continue;
     }
