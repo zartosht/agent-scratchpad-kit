@@ -1,0 +1,7 @@
+# Agent Scratchpad local state
+!.agent/
+!.agent/README.md
+!.agent/SCRATCHPAD.template.md
+!.agent/VERSION
+.agent/SCRATCHPAD.local.md
+.agent/backups/

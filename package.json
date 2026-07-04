@@ -1,0 +1,16 @@
+{
+  "name": "agent-scratchpad-kit",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Durable repo-local scratchpad workflow for coding agents.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "sync": "node scripts/sync-packages.mjs",
+    "check:sync": "node scripts/sync-packages.mjs --check",
+    "test": "node tests/installer.test.mjs && node tests/sync.test.mjs && node tests/version.test.mjs",
+    "check": "node --check installers/init.mjs && node --check scripts/sync-packages.mjs && npm run check:sync && npm test"
+  }
+}

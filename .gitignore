@@ -1,0 +1,6 @@
+# Agent local scratchpad state
+.agent/SCRATCHPAD.local.md
+.agent/backups/
+
+# Local planning notes
+PLAN.md
