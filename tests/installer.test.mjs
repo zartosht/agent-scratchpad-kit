@@ -521,32 +521,32 @@ runTest('Cursor adapter preserves CRLF frontmatter while appending block', () =>
   assert.match(content, /Existing body/);
 });
 
-runTest('Cursor adapter upgrades generated frontmatter when managed block is current', () => {
+runTest('Cursor adapter preserves user-edited frontmatter when managed block is current', () => {
   const target = tempDir();
   const cursorPath = join(target, '.cursor/rules/agent-scratchpad.mdc');
   assert.equal(runInstaller([target, '--agent', 'cursor']).status, 0);
 
-  const staleFrontmatter = [
+  const userFrontmatter = [
     '---',
-    'description: Stale Agent Scratchpad rule',
-    'globs: "**/*.md"',
-    'alwaysApply: false',
+    'description: Team-scoped Agent Scratchpad rule',
+    'globs: "src/**"',
+    'alwaysApply: true',
     '---',
     '',
   ].join('\n');
   writeFileSync(
     cursorPath,
-    read(cursorPath).replace(/^---\n[\s\S]*?\n---\n/, staleFrontmatter),
+    read(cursorPath).replace(/^---\n[\s\S]*?\n---\n/, userFrontmatter),
     'utf8',
   );
 
   const result = runInstaller([target, '--agent', 'cursor']);
   assert.equal(result.status, 0, result.stderr);
   const content = read(cursorPath);
-  assert.match(content, /^description: Use the Agent Scratchpad workflow/m);
-  assert.match(content, /^globs: "\*\*\/\*"$/m);
+  assert.match(content, /^description: Team-scoped Agent Scratchpad rule$/m);
+  assert.match(content, /^globs: "src\/\*\*"$/m);
   assert.match(content, /^alwaysApply: true$/m);
-  assert.doesNotMatch(content, /Stale Agent Scratchpad rule/);
+  assert.match(content, /Frontmatter-Checksum: sha256:/);
   assert.equal((content.match(/BEGIN Agent Scratchpad Kit/g) ?? []).length, 1);
 });
 

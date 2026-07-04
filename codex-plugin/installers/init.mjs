@@ -699,7 +699,7 @@ function installAdapter(run, adapter) {
       ? splitLeadingFrontmatter(sourceRaw)
       : { frontmatter: '', body: sourceRaw };
     const payload = normalizePayload(sourceParts.body);
-    const block = buildManagedBlock(adapter, payload);
+    const block = buildManagedBlock(adapter, payload, sourceParts);
     const destAbs = safePath(run, relPath);
 
     if (!existsSync(destAbs)) {
@@ -1008,10 +1008,7 @@ function mergeAdapterContent({
   }
 
   if (managed.block) {
-    if (
-      normalizeLineEndings(managed.block.raw) === block
-      && cursorFrontmatterIsCurrent(existing, managed.block, adapter, sourceParts)
-    ) {
+    if (normalizeLineEndings(managed.block.raw) === block) {
       return { status: 'unchanged' };
     }
 
@@ -1097,22 +1094,37 @@ function isManagedBlockPristine(rawBlock, adapter) {
   }
 
   const payload = extractPayloadFromBlock(normalized);
-  const currentChecksum = managedBlockChecksum(adapter, payload);
+  const frontmatterChecksum = extractCursorFrontmatterChecksum(normalized);
+  if (frontmatterChecksum && !adapter.cursorMdc) {
+    return false;
+  }
+  const currentChecksum = managedBlockChecksum(adapter, payload, frontmatterChecksum);
+  const legacyManagedChecksum = managedBlockChecksum(adapter, payload);
   const legacyPayloadChecksum = sha256(payload);
-  if (currentChecksum !== checksum[1] && legacyPayloadChecksum !== checksum[1]) {
+  if (
+    currentChecksum !== checksum[1]
+    && legacyManagedChecksum !== checksum[1]
+    && legacyPayloadChecksum !== checksum[1]
+  ) {
     return false;
   }
 
   const lines = normalized.split('\n');
-  const hasExpectedHeader = lines[1] === `<!-- Source: ${adapter.source} -->`
-    && lines[2] === `<!-- Checksum: sha256:${checksum[1]} -->`
-    && lines[3] === MANAGED_BLOCK_NOTE;
-
-  if (!hasExpectedHeader) {
+  if (!isSemverManagedBeginLine(lines[0])) {
     return false;
   }
-
-  return isSemverManagedBeginLine(lines[0]);
+  if (lines[1] !== `<!-- Source: ${adapter.source} -->`) {
+    return false;
+  }
+  let metadataIndex = 2;
+  if (lines[metadataIndex]?.startsWith('<!-- Frontmatter-Checksum: sha256:')) {
+    if (lines[metadataIndex] !== `<!-- Frontmatter-Checksum: sha256:${frontmatterChecksum} -->`) {
+      return false;
+    }
+    metadataIndex += 1;
+  }
+  return lines[metadataIndex] === `<!-- Checksum: sha256:${checksum[1]} -->`
+    && lines[metadataIndex + 1] === MANAGED_BLOCK_NOTE;
 }
 
 function extractPayloadFromBlock(rawBlock) {
@@ -1144,23 +1156,19 @@ function isKnownLegacyAdapter(adapter, existing, sourceRaw, sourceBody) {
 
 function replaceManagedBlock(existing, managedBlock, block, adapter, sourceParts) {
   const updated = `${existing.slice(0, managedBlock.start)}${block}${existing.slice(managedBlock.end)}`;
-  return replaceManagedCursorFrontmatter(updated, managedBlock.start, adapter, sourceParts);
+  return replaceManagedCursorFrontmatter(updated, managedBlock, adapter, sourceParts);
 }
 
-function cursorFrontmatterIsCurrent(existing, managedBlock, adapter, sourceParts) {
-  if (!adapter.cursorMdc || !cursorFrontmatterCanBeManaged(existing, managedBlock.start)) {
-    return true;
-  }
-  const { frontmatter } = splitLeadingFrontmatter(existing);
-  return normalizeLineEndings(frontmatter) === normalizeLineEndings(sourceParts.frontmatter);
-}
-
-function replaceManagedCursorFrontmatter(content, managedBlockStart, adapter, sourceParts) {
-  if (!adapter.cursorMdc || !cursorFrontmatterCanBeManaged(content, managedBlockStart)) {
+function replaceManagedCursorFrontmatter(content, managedBlock, adapter, sourceParts) {
+  if (!adapter.cursorMdc || !cursorFrontmatterCanBeManaged(content, managedBlock.start)) {
     return content;
   }
   const { frontmatter, body } = splitLeadingFrontmatter(content);
   if (normalizeLineEndings(frontmatter) === normalizeLineEndings(sourceParts.frontmatter)) {
+    return content;
+  }
+  const expectedChecksum = extractCursorFrontmatterChecksum(managedBlock.raw);
+  if (!expectedChecksum || cursorFrontmatterChecksum(frontmatter) !== expectedChecksum) {
     return content;
   }
   return `${sourceParts.frontmatter}${body}`;
@@ -1169,6 +1177,15 @@ function replaceManagedCursorFrontmatter(content, managedBlockStart, adapter, so
 function cursorFrontmatterCanBeManaged(content, managedBlockStart) {
   const { frontmatter } = splitLeadingFrontmatter(content);
   return managedBlockStart === 0 || managedBlockStart === frontmatter.length;
+}
+
+function extractCursorFrontmatterChecksum(rawBlock) {
+  const match = normalizeLineEndings(rawBlock).match(/<!-- Frontmatter-Checksum: sha256:([a-f0-9]+) -->/);
+  return match ? match[1] : null;
+}
+
+function cursorFrontmatterChecksum(frontmatter) {
+  return sha256(normalizeLineEndings(frontmatter));
 }
 
 function appendAdapterBlock(existing, block, cursorMdc) {
@@ -1188,12 +1205,23 @@ function appendAdapterBlock(existing, block, cursorMdc) {
   return `${existing}${separator}${block}`;
 }
 
-function buildManagedBlock(adapter, payload) {
-  return [
+function buildManagedBlock(adapter, payload, sourceParts = { frontmatter: '' }) {
+  const metadata = [
     `<!-- BEGIN Agent Scratchpad Kit v${version} -->`,
     `<!-- Source: ${adapter.source} -->`,
-    `<!-- Checksum: sha256:${managedBlockChecksum(adapter, payload)} -->`,
+  ];
+  const frontmatterChecksum = adapter.cursorMdc
+    ? cursorFrontmatterChecksum(sourceParts.frontmatter)
+    : null;
+  if (frontmatterChecksum) {
+    metadata.push(`<!-- Frontmatter-Checksum: sha256:${frontmatterChecksum} -->`);
+  }
+  metadata.push(
+    `<!-- Checksum: sha256:${managedBlockChecksum(adapter, payload, frontmatterChecksum)} -->`,
     MANAGED_BLOCK_NOTE,
+  );
+  return [
+    ...metadata,
     '',
     payload.trimEnd(),
     '',
@@ -1202,12 +1230,15 @@ function buildManagedBlock(adapter, payload) {
   ].join('\n');
 }
 
-function managedBlockChecksum(adapter, payload) {
-  return sha256([
+function managedBlockChecksum(adapter, payload, frontmatterChecksum = null) {
+  const parts = [
     `Source: ${adapter.source}`,
-    MANAGED_BLOCK_NOTE,
-    normalizePayload(payload),
-  ].join('\n'));
+  ];
+  if (frontmatterChecksum) {
+    parts.push(`Frontmatter-Checksum: sha256:${frontmatterChecksum}`);
+  }
+  parts.push(MANAGED_BLOCK_NOTE, normalizePayload(payload));
+  return sha256(parts.join('\n'));
 }
 
 function splitLeadingFrontmatter(content) {

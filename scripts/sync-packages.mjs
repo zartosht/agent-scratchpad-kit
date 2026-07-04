@@ -183,43 +183,58 @@ function syncClaudePluginManifest() {
 
 function syncClaudeMarketplace() {
   const relPath = '.claude-plugin/marketplace.json';
-  const json = JSON.parse(readText(relPath));
-  let found = false;
-  for (const plugin of json.plugins ?? []) {
-    if (plugin.name === 'agent-scratchpad') {
-      found = true;
-      plugin.version = version;
-    }
-  }
-  if (!found) {
-    fail(relPath, 'missing agent-scratchpad plugin entry');
-  }
-  writeJson(relPath, json);
+  writeJson(relPath, expectedClaudeMarketplace());
 }
 
 function syncCodexMarketplace() {
   const relPath = '.agents/plugins/marketplace.json';
-  const json = JSON.parse(readText(relPath));
-  const expectedSource = expectedCodexMarketplaceSource();
-  let found = false;
-  for (const plugin of json.plugins ?? []) {
-    if (plugin.name === 'agent-scratchpad') {
-      found = true;
-      plugin.source = expectedSource;
-    }
-  }
-  if (!found) {
-    fail(relPath, 'missing agent-scratchpad plugin entry');
-  }
-  writeJson(relPath, json);
+  writeJson(relPath, expectedCodexMarketplace());
 }
 
-function expectedCodexMarketplaceSource() {
+function expectedClaudeMarketplace() {
   return {
-    source: 'git-subdir',
-    url: 'https://github.com/zartosht/agent-scratchpad-kit.git',
-    path: './codex-plugin',
-    ref: `v${version}`,
+    name: 'agent-scratchpad-kit',
+    owner: {
+      name: 'Zartosht',
+      url: 'https://github.com/zartosht',
+    },
+    plugins: [
+      {
+        name: 'agent-scratchpad',
+        source: './claude-plugin',
+        description: 'Durable scratchpad workflow for long-running coding-agent tasks.',
+        version,
+        author: {
+          name: 'Zartosht',
+          url: 'https://github.com/zartosht',
+        },
+      },
+    ],
+  };
+}
+
+function expectedCodexMarketplace() {
+  return {
+    name: 'agent-scratchpad-kit',
+    interface: {
+      displayName: 'Agent Scratchpad Kit',
+    },
+    plugins: [
+      {
+        name: 'agent-scratchpad',
+        source: {
+          source: 'git-subdir',
+          url: 'https://github.com/zartosht/agent-scratchpad-kit.git',
+          path: './codex-plugin',
+          ref: `v${version}`,
+        },
+        policy: {
+          installation: 'AVAILABLE',
+          authentication: 'ON_INSTALL',
+        },
+        category: 'Productivity',
+      },
+    ],
   };
 }
 
@@ -378,33 +393,15 @@ function validateSkillsPath(manifestRelPath, pluginRoot, skillsPath) {
 }
 
 function validateMarketplaceFiles() {
-  const codex = findPlugin('.agents/plugins/marketplace.json');
-  if (codex) {
-    const expectedSource = expectedCodexMarketplaceSource();
-    if (JSON.stringify(codex.source) !== JSON.stringify(expectedSource)) {
-      fail('.agents/plugins/marketplace.json', 'agent-scratchpad source must match canonical git-subdir source');
-    }
-  }
-
-  const claude = findPlugin('.claude-plugin/marketplace.json');
-  if (claude) {
-    if (claude.source !== './claude-plugin') {
-      fail('.claude-plugin/marketplace.json', 'agent-scratchpad source must be ./claude-plugin');
-    }
-    if (claude.version !== version) {
-      fail('.claude-plugin/marketplace.json', `agent-scratchpad version must be ${version}`);
-    }
-  }
+  validateJsonContent('.agents/plugins/marketplace.json', expectedCodexMarketplace());
+  validateJsonContent('.claude-plugin/marketplace.json', expectedClaudeMarketplace());
 }
 
-function findPlugin(relPath) {
-  const json = JSON.parse(readText(relPath));
-  const plugin = (json.plugins ?? []).find(entry => entry.name === 'agent-scratchpad');
-  if (!plugin) {
-    fail(relPath, 'missing agent-scratchpad plugin entry');
-    return null;
+function validateJsonContent(relPath, expected) {
+  const current = JSON.parse(readText(relPath));
+  if (JSON.stringify(current) !== JSON.stringify(expected)) {
+    fail(relPath, 'content drift');
   }
-  return plugin;
 }
 
 function writeJson(relPath, value) {
@@ -443,6 +440,8 @@ function listFiles(relDir) {
       }
     } else if (entry.isFile()) {
       output.push(fromRoot);
+    } else if (entry.isSymbolicLink()) {
+      fail(entryRel, 'symlink not allowed in generated tree');
     }
   }
 
@@ -458,6 +457,8 @@ function listFilesAbs(absDir, prefix = '') {
       output.push(...listFilesAbs(absDir, rel));
     } else if (entry.isFile()) {
       output.push(rel);
+    } else if (entry.isSymbolicLink()) {
+      fail(join(absDir, rel), 'symlink not allowed in generated tree');
     }
   }
 
@@ -482,6 +483,7 @@ function isLineEndingTolerantGeneratedPath(relPath) {
   const lower = relPath.toLowerCase();
   return lower.endsWith('.md')
     || lower.endsWith('.mdc')
+    || lower.endsWith('.gitignore')
     || lower.endsWith('.yml')
     || lower.endsWith('.yaml')
     || lower.endsWith('.json')

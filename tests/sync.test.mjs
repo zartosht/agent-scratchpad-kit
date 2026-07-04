@@ -1,5 +1,5 @@
 import assert from 'assert/strict';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join, relative, resolve } from 'path';
 import { spawnSync } from 'child_process';
@@ -33,7 +33,8 @@ runCrlfSkillMetadataSyncCheck();
 runCrlfGeneratedExampleCheck();
 runScaffoldCanonicalSourceSyncCheck();
 runGeneratedPluginManifestDriftCheck();
-runCodexMarketplaceSourceDriftCheck();
+runMarketplaceMetadataDriftCheck();
+runGeneratedPackageSymlinkCheck();
 
 console.log('ok - packaged plugin copies are synced');
 
@@ -60,8 +61,11 @@ function runCrlfGeneratedExampleCheck() {
       'codex-plugin/VERSION',
       'claude-plugin/.claude-plugin/plugin.json',
       'examples/multi-agent/AGENTS.md',
+      'examples/multi-agent/.gitignore',
       'codex-plugin/examples/multi-agent/AGENTS.md',
+      'codex-plugin/examples/multi-agent/.gitignore',
       'claude-plugin/examples/multi-agent/AGENTS.md',
+      'claude-plugin/examples/multi-agent/.gitignore',
     ]) {
       const absPath = join(tempRepo, relPath);
       writeFileSync(absPath, readFileSync(absPath, 'utf8').replace(/\r?\n/g, '\r\n'), 'utf8');
@@ -184,7 +188,7 @@ function runGeneratedPluginManifestDriftCheck() {
   }
 }
 
-function runCodexMarketplaceSourceDriftCheck() {
+function runMarketplaceMetadataDriftCheck() {
   const tempRoot = mkdtempSync(join(tmpdir(), 'agent-scratchpad-sync-'));
   const tempRepo = join(tempRoot, 'repo');
   try {
@@ -201,7 +205,16 @@ function runCodexMarketplaceSourceDriftCheck() {
     const plugin = marketplace.plugins.find(entry => entry.name === 'agent-scratchpad');
     plugin.source.source = 'git';
     plugin.source.url = 'https://github.com/example/wrong-repo.git';
+    plugin.policy.installation = 'HIDDEN';
+    marketplace.interface.displayName = 'Drifted Marketplace';
     writeFileSync(marketplacePath, `${JSON.stringify(marketplace, null, 2)}\n`, 'utf8');
+
+    const claudeMarketplacePath = join(tempRepo, '.claude-plugin/marketplace.json');
+    const claudeMarketplace = JSON.parse(readFileSync(claudeMarketplacePath, 'utf8'));
+    const claudePlugin = claudeMarketplace.plugins.find(entry => entry.name === 'agent-scratchpad');
+    claudePlugin.description = 'Drifted description';
+    claudePlugin.author.name = 'Someone Else';
+    writeFileSync(claudeMarketplacePath, `${JSON.stringify(claudeMarketplace, null, 2)}\n`, 'utf8');
 
     const check = spawnSync(process.execPath, ['scripts/sync-packages.mjs', '--check'], {
       cwd: tempRepo,
@@ -209,6 +222,32 @@ function runCodexMarketplaceSourceDriftCheck() {
     });
     assert.notEqual(check.status, 0, `${check.stdout}\n${check.stderr}`);
     assert.match(check.stdout, /\.agents\/plugins\/marketplace\.json: content drift/);
+    assert.match(check.stdout, /\.claude-plugin\/marketplace\.json: content drift/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function runGeneratedPackageSymlinkCheck() {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'agent-scratchpad-sync-'));
+  const tempRepo = join(tempRoot, 'repo');
+  try {
+    cpSync(repoRoot, tempRepo, {
+      recursive: true,
+      filter: src => {
+        const parts = relative(repoRoot, src).split(/[\\/]/);
+        return !parts.includes('.git') && !parts.includes('node_modules');
+      },
+    });
+
+    symlinkSync('README.md', join(tempRepo, 'codex-plugin/examples/minimal/.agent/README.link.md'));
+
+    const check = spawnSync(process.execPath, ['scripts/sync-packages.mjs', '--check'], {
+      cwd: tempRepo,
+      encoding: 'utf8',
+    });
+    assert.notEqual(check.status, 0, `${check.stdout}\n${check.stderr}`);
+    assert.match(check.stdout, /symlink not allowed in generated tree/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
