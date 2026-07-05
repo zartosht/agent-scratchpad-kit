@@ -1,0 +1,85 @@
+name: Release Tag
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-tag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-tag:
+    name: Create release tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Refuse non-main refs
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Release tags can only be created from main."
+          exit 1
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run validation
+        run: npm run check
+
+      - name: Read release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::VERSION must be SemVer without a leading v."
+            exit 1
+          fi
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create missing release tag
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          remote_ref="$(git ls-remote --refs --tags origin "refs/tags/${TAG}")"
+          if [[ -n "${remote_ref}" ]]; then
+            git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}"
+            existing_sha="$(git rev-list -n 1 "refs/tags/${TAG}")"
+
+            if [[ "${existing_sha}" == "${GITHUB_SHA}" ]]; then
+              echo "${TAG} already points at ${GITHUB_SHA}."
+              exit 0
+            fi
+
+            if git merge-base --is-ancestor "${existing_sha}" "${GITHUB_SHA}"; then
+              echo "::notice::${TAG} already exists at ${existing_sha}; bump VERSION to publish a new tag."
+              exit 0
+            fi
+
+            echo "::error::${TAG} exists at ${existing_sha}, which is not an ancestor of ${GITHUB_SHA}."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release ${TAG}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${TAG}"

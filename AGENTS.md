@@ -67,7 +67,7 @@ This checks installer syntax, package sync drift, installer behavior, version co
 4. Run `npm run check`.
 5. Confirm `.agent/SCRATCHPAD.local.md`, `.agent/backups/`, and `PLAN.md` are not tracked.
 6. Confirm stable marketplace refs in the release commit point at the intended release tag, for example `v0.2.0`.
-7. Commit the release changes.
-8. Create and push the release tag on that commit.
+7. Commit the release changes and merge them to `main`.
+8. Let the Release Tag workflow validate `main` and create the missing `v$VERSION` tag.
 9. Verify the tag exists remotely before relying on marketplace install, for example `git ls-remote --tags origin v0.2.0`.
 10. Use release tags for stable marketplace refs. Use `main` only for a documented latest/dev channel.

@@ -138,7 +138,7 @@ Use the scratchpad for current objective, context, plan, decisions, files inspec
 
 Skill metadata is useful, but it is not enough by itself because some agents consume plain Markdown instruction files or moving marketplace refs. Generated scaffold and adapter blocks record the version too.
 
-Stable public marketplace refs should point to release tags such as `v0.2.0` only after that tag has been created and pushed. Use `main` only for an explicitly documented latest/dev channel.
+Stable public marketplace refs should point to release tags such as `v0.2.0` only after that tag has been created and pushed. The Release Tag workflow creates the missing `v$VERSION` tag from `main` after validation passes. Use `main` only for an explicitly documented latest/dev channel.
 
 ## Security And Privacy
 
@@ -172,8 +172,8 @@ npm run check
 4. Confirm stable marketplace refs in the release commit point at the intended release tag, for example `v0.2.0`.
 5. Run `npm run check`.
 6. Confirm `.agent/SCRATCHPAD.local.md`, `.agent/backups/`, and `PLAN.md` are not tracked.
-7. Commit the release changes.
-8. Create and push the release tag on that commit.
+7. Commit the release changes and merge them to `main`.
+8. Let the Release Tag workflow validate `main` and create the missing `v$VERSION` tag.
 9. Verify the tag exists remotely before relying on marketplace install, for example `git ls-remote --tags origin v0.2.0`.
 
 ## Roadmap
