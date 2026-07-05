@@ -91,6 +91,7 @@ if (existsSync(join(repoRoot, '.git'))) {
     'tests/sync.test.mjs',
     'tests/version.test.mjs',
     '.github/workflows/ci.yml',
+    '.github/workflows/release-tag.yml',
     'examples/multi-agent/AGENTS.md',
     'codex-plugin/.codex-plugin/plugin.json',
     'claude-plugin/.claude-plugin/plugin.json',
