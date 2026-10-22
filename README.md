@@ -153,7 +153,9 @@ Stable public marketplace refs should point to release tags such as `v0.2.0` onl
 
 ## Development
 
-Install no dependencies; the project uses Node.js built-ins only. Node 20 or newer is required.
+Install no dependencies; the project uses Node.js built-ins only. Supported Node.js versions are 22.23.4 or newer on 22.x, 24.22.1 or newer on 24.x, and 26.12.1 or newer on 26.x. These minimums include the [October 21, 2026 security fixes](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases). End-of-life majors are unsupported.
+
+The `.nvmrc` file pins development to Node.js 24.22.1; run `nvm install` and `nvm use` when using nvm. CI and release validation use Node.js 22.23.4. Direct installer execution uses the caller's Node.js runtime, so update that runtime separately; package engine metadata does not upgrade or enforce it.
 
 ```bash
 npm run sync

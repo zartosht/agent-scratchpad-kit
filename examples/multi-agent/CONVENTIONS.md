@@ -1,4 +1,4 @@
-<!-- BEGIN Agent Scratchpad Kit v0.2.0 -->
+<!-- BEGIN Agent Scratchpad Kit v0.3.0 -->
 <!-- Source: adapters/CONVENTIONS.md -->
 <!-- Checksum: sha256:92f413096d1ed97995562fde83a79478b7d28c30dd0cad6b4dfe0573a495f2bd -->
 <!-- Do not edit inside this managed block. Put custom instructions before or after it. -->

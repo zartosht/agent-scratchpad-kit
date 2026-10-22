@@ -1,4 +1,4 @@
-<!-- BEGIN Agent Scratchpad Kit v0.2.0 -->
+<!-- BEGIN Agent Scratchpad Kit v0.3.0 -->
 <!-- Source: adapters/CLAUDE.md -->
 <!-- Checksum: sha256:298b956f4e1bf764cb037b3e8c44314d60b299baa111c7d956560c64302e52e4 -->
 <!-- Do not edit inside this managed block. Put custom instructions before or after it. -->

@@ -1,4 +1,4 @@
-<!-- BEGIN Agent Scratchpad Kit v0.2.0 -->
+<!-- BEGIN Agent Scratchpad Kit v0.3.0 -->
 <!-- Source: adapters/copilot-instructions.md -->
 <!-- Checksum: sha256:e350a4c295d38d424d6e4ac04054c6fc873a1504ee4bbaccac30410e60c1ece5 -->
 <!-- Do not edit inside this managed block. Put custom instructions before or after it. -->

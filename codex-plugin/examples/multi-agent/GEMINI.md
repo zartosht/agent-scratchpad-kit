@@ -1,4 +1,4 @@
-<!-- BEGIN Agent Scratchpad Kit v0.2.0 -->
+<!-- BEGIN Agent Scratchpad Kit v0.3.0 -->
 <!-- Source: adapters/GEMINI.md -->
 <!-- Checksum: sha256:771afdc23d250dd3e64e600263f5829a8932aeb8a87f9adf371a5baf7641a58c -->
 <!-- Do not edit inside this managed block. Put custom instructions before or after it. -->

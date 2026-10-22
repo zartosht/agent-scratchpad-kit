@@ -35,11 +35,41 @@ runScaffoldCanonicalSourceSyncCheck();
 runGeneratedPluginManifestDriftCheck();
 runMarketplaceMetadataDriftCheck();
 runGeneratedPackageSymlinkCheck();
+runNodeEnginePolicyCheck();
 
 console.log('ok - packaged plugin copies are synced');
 
 function read(relPath) {
   return readFileSync(join(repoRoot, relPath), 'utf8');
+}
+
+function runNodeEnginePolicyCheck() {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'agent-scratchpad-engines-'));
+  const tempRepo = join(tempRoot, 'repo');
+  try {
+    cpSync(repoRoot, tempRepo, {
+      recursive: true,
+      filter: src => {
+        const parts = relative(repoRoot, src).split(/[\\/]/);
+        return !parts.includes('.git') && !parts.includes('node_modules');
+      },
+    });
+
+    const packagePath = join(tempRepo, 'package.json');
+    const pkg = JSON.parse(readFileSync(packagePath, 'utf8'));
+    for (const node of ['>=20', '^22.0.0', '^24.0.0', '^26.0.0']) {
+      pkg.engines.node = node;
+      writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
+      const check = spawnSync(process.execPath, ['scripts/sync-packages.mjs', '--check'], {
+        cwd: tempRepo,
+        encoding: 'utf8',
+      });
+      assert.notEqual(check.status, 0, `${node} must not pass runtime policy validation`);
+      assert.ok(`${check.stdout}\n${check.stderr}`.includes('engines.node must be'), `${check.stdout}\n${check.stderr}`);
+    }
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 }
 
 function runCrlfGeneratedExampleCheck() {

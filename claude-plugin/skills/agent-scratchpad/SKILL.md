@@ -3,7 +3,7 @@ name: agent-scratchpad
 description: Use when working on complex coding tasks, refactors, migrations, debugging sessions, investigations, context compaction, handoffs, or when asked to install/repair the Agent Scratchpad workflow in a repository.
 license: MIT
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # Skill: Agent Scratchpad

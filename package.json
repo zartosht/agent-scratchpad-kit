@@ -1,11 +1,11 @@
 {
   "name": "agent-scratchpad-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Durable repo-local scratchpad workflow for coding agents.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "^22.23.4 || ^24.22.1 || ^26.12.1"
   },
   "scripts": {
     "sync": "node scripts/sync-packages.mjs",

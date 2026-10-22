@@ -348,8 +348,8 @@ function validatePackageJson() {
   if (json.type !== 'module') {
     fail('package.json', 'type must be module');
   }
-  if (json.engines?.node !== '>=20') {
-    fail('package.json', 'engines.node must be >=20');
+  if (json.engines?.node !== '^22.23.4 || ^24.22.1 || ^26.12.1') {
+    fail('package.json', 'engines.node must be ^22.23.4 || ^24.22.1 || ^26.12.1');
   }
   for (const script of ['sync', 'check:sync', 'test', 'check']) {
     if (!json.scripts?.[script]) {

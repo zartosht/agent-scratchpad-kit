@@ -10,7 +10,7 @@
         "source": "git-subdir",
         "url": "https://github.com/zartosht/agent-scratchpad-kit.git",
         "path": "./codex-plugin",
-        "ref": "v0.2.0"
+        "ref": "v0.3.0"
       },
       "policy": {
         "installation": "AVAILABLE",

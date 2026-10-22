@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
+### Security
+
+- Require Node.js 22.23.4, 24.22.1, or 26.12.1 and later releases on those supported majors, incorporating the [October 21, 2026 Node.js security fixes](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases), including CVE-2026-111497.
+- Pin CI and release validation to Node.js 22.23.4 and report the selected runtime in workflow logs.
+- Update checkout and Node.js setup actions to v6, whose action manifests use Node.js 24.
+
+### Changed
+
+- Drop support for Node.js 20 and other end-of-life majors.
+- Pin local development to Node.js 24.22.1 through `.nvmrc`.
+
 ## [0.2.0] - 2026-07-04
 
 ### Added

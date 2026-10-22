@@ -3,7 +3,7 @@ description: Use the Agent Scratchpad workflow for durable working memory in com
 globs: "**/*"
 alwaysApply: true
 ---
-<!-- BEGIN Agent Scratchpad Kit v0.2.0 -->
+<!-- BEGIN Agent Scratchpad Kit v0.3.0 -->
 <!-- Source: adapters/cursor-rule.mdc -->
 <!-- Frontmatter-Checksum: sha256:ff638363041325cc4fd5ff26ff8dd1f13810dc9a1f4cc6f1b341cec7ff71fcb6 -->
 <!-- Checksum: sha256:cabbf7dc30f9f10c7358c38124fe933b6bdff2d74f6d3804a2667355fdf0d23d -->
